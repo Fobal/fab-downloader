@@ -1,9 +1,6 @@
 # Fab Downloader
 
-Get the Unreal Engine items in your Fab library without the Epic Games Launcher: add them to a
-project, install code plugins into an engine (including source-built engines, which the
-launcher cannot install into), or download a build for any engine version. Runs on Windows and
-Linux, with a window and a command line.
+Download Fab Marketplace assets you own for any engine version without Epic Games Launcher or Unreal Engine installed. Runs on Windows and Linux, with a window or a command line.
 
 ![The Fab Downloader window](https://raw.githubusercontent.com/Fobal/fab-downloader/main/docs/screenshot.png)
 
