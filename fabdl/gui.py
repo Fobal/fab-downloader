@@ -30,7 +30,7 @@ from .project import Engine, Project, ProjectError, engine_from_folder, find_eng
 from .settings import SETTINGS_PATH, Settings
 from .workflow import EXPECTED_ERRORS, UpdateStatus
 
-TITLE = "fabdl"
+TITLE = "Fab Downloader"
 FOLDER, PROJECT, ENGINE = "folder", "project", "engine"
 _ACTION_LABELS = {FOLDER: "Download", PROJECT: "Add to project", ENGINE: "Install to engine"}
 _POLL_MS = 50
