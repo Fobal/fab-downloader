@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest something fabdl should do.
+description: Suggest something Fab Downloader should do.
 labels: [enhancement]
 body:
   - type: textarea

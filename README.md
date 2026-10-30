@@ -1,7 +1,7 @@
 # Fab Downloader
 
-Fab Downloader (fabdl for short) is a downloader for Fab, Epic's marketplace. Without the Epic
-Games Launcher, it can:
+Fab Downloader is a downloader for Fab, Epic's marketplace. Without the Epic Games Launcher,
+it can:
 
 - add Fab items to an Unreal project: code plugins go into `Plugins`, asset packs into `Content`;
 - install code plugins into an engine, like the launcher's **Install to Engine**;
@@ -9,7 +9,7 @@ Games Launcher, it can:
 
 It helps with source-built engines, which the launcher cannot install plugins into. Windows only.
 
-> fabdl is not affiliated with, endorsed by or supported by Epic Games. See
+> Fab Downloader is not affiliated with, endorsed by or supported by Epic Games. See
 > [Disclaimer](#disclaimer).
 
 ## Install
@@ -38,9 +38,9 @@ PyInstaller one-file executables as false positives. If that happens, use pipx o
      **...** (its root, or the `Engine` folder inside it). **Install to engine** puts a code
      plugin into that engine.
 
-   For Project and Engine, the **Installed** column shows plugins fabdl installed there, and
-   **Check for updates** asks Fab for each one's current build. To update a plugin, select it
-   and install it again.
+   For Project and Engine, the **Installed** column shows plugins Fab Downloader installed
+   there, and **Check for updates** asks Fab for each one's current build. To update a plugin,
+   select it and install it again.
 
 The window remembers the destination, folder, project, engine and engine version.
 
@@ -81,17 +81,17 @@ fabdl logout
 
 - **Where:** a project's `Plugins\<PluginName>`, or an engine's
   `Engine\Plugins\Marketplace\<PluginName>`. If the plugin is already there, it is replaced
-  where it is. fabdl never replaces an engine's own built-in plugins.
+  where it is. Fab Downloader never replaces an engine's own built-in plugins.
 - **Replacing:** the old copy is moved to `Saved\PluginBackups\<folder>-<date>` (in the project
   or the engine). If it cannot be moved, usually because the Unreal Editor has its DLLs open,
   nothing changes.
 - **Source-built engines:** the plugin's prebuilt `Binaries` and `Intermediate` folders target
   the launcher build, so they are removed and the build compiles the plugin. Engines with
   `Engine\Build\InstalledBuild.txt` (launcher and installed builds) keep them.
-- **Enabled or not:** fabdl reports when the plugin will not load until enabled: in a project,
-  because its `.uplugin` sets `EnabledByDefault` to false or the `.uproject` disables it; in an
-  engine, unless it sets `EnabledByDefault` to true. It never edits the `.uproject`; enable the
-  plugin in **Edit > Plugins**.
+- **Enabled or not:** Fab Downloader reports when the plugin will not load until enabled: in a
+  project, because its `.uplugin` sets `EnabledByDefault` to false or the `.uproject` disables
+  it; in an engine, unless it sets `EnabledByDefault` to true. It never edits the `.uproject`;
+  enable the plugin in **Edit > Plugins**.
 - **Record:** `.fabdl.json` in the plugin folder stores the Fab item, engine version and build.
   Update checks compare it with Fab's current build, one request per installed plugin.
 
@@ -106,10 +106,10 @@ installed into an engine, and complete sample projects should be downloaded inst
 ## Signing in
 
 Signing in uses Epic's login page in your browser. After you sign in, the page shows JSON text.
-In the window, just copy that whole page (Ctrl+A, Ctrl+C): fabdl notices the copied page and
-signs in. You can also paste the `authorizationCode` value into the box, or into the prompt on
-the command line. fabdl only reacts to a copied page that contains `authorizationCode`, and
-stops watching the clipboard after signing in or after 10 minutes.
+In the window, just copy that whole page (Ctrl+A, Ctrl+C): Fab Downloader notices the copied
+page and signs in. You can also paste the `authorizationCode` value into the box, or into the
+prompt on the command line. Fab Downloader only reacts to a copied page that contains
+`authorizationCode`, and stops watching the clipboard after signing in or after 10 minutes.
 
 The window and the command line share the session. It is saved in
 `%APPDATA%\fab-downloader\session.bin`, encrypted for your Windows user with DPAPI, and
@@ -154,7 +154,7 @@ security problems privately as described in
 
 ## Support
 
-fabdl is free and open source. If it saves you time, you can support the developer:
+Fab Downloader is free and open source. If it saves you time, you can support the developer:
 
 - [GitHub Sponsors](https://github.com/sponsors/Fobal)
 - EVM network (Ethereum, Polygon, etc): `0x4C6C4c665113C6311501567c0BFC38029b00a82e`
@@ -162,17 +162,18 @@ fabdl is free and open source. If it saves you time, you can support the develop
 - Solana: `C1WMmKNztix6UWxpSpp6CueJDZW9ikbEnQ7peFCRdV2D`
 - Tron: `TApEv8Syq6VxX67s57W52pLapr1FtDznnu`
 
-Starring the repository, reporting bugs and sharing fabdl with other Unreal developers help too.
+Starring the repository, reporting bugs and sharing Fab Downloader with other Unreal developers
+help too.
 
 ## Disclaimer
 
-fabdl is an independent project. It is not affiliated with, endorsed by or supported by Epic
-Games, Inc. Epic Games, Fab and Unreal Engine are trademarks or registered trademarks of Epic
-Games, Inc. in the United States and elsewhere.
+Fab Downloader is an independent project. It is not affiliated with, endorsed by or supported
+by Epic Games, Inc. Epic Games, Fab and Unreal Engine are trademarks or registered trademarks
+of Epic Games, Inc. in the United States and elsewhere.
 
-fabdl only downloads items in the signed-in account's own Fab library, through the same
-endpoints the Epic Games Launcher uses. You are responsible for following Epic's terms and the
-license of each item you download.
+Fab Downloader only downloads items in the signed-in account's own Fab library, through the
+same endpoints the Epic Games Launcher uses. You are responsible for following Epic's terms and
+the license of each item you download.
 
 ## License
 

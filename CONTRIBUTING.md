@@ -5,14 +5,14 @@ Bug reports, fixes and ideas are welcome.
 ## Issues
 
 - Search the existing issues first.
-- For a bug, use the bug report form: the fabdl version, how you run it, and the error.
+- For a bug, use the bug report form: the Fab Downloader version, how you run it, and the error.
 - Never post your `authorizationCode`, the copied login page or `session.bin`.
 - Report security problems privately, as described in [SECURITY.md](SECURITY.md).
 
 ## Pull requests
 
 1. For anything larger than a small fix, open an issue first so we can agree on the approach.
-2. Keep fabdl dependency-free: only the Python standard library, Python 3.11+.
+2. Keep Fab Downloader dependency-free: only the Python standard library, Python 3.11+.
 3. Add or update tests in `tests/`. They use fakes and must not reach Epic or Fab.
 4. Run the checks before you push:
 

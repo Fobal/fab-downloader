@@ -10,7 +10,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: fabdl version
+      label: Fab Downloader version
       description: The release you downloaded, or the commit if you run from source.
       placeholder: v1.0.0
     validations:
@@ -18,7 +18,7 @@ body:
   - type: dropdown
     id: install
     attributes:
-      label: How you run fabdl
+      label: How you run Fab Downloader
       options:
         - fab-downloader.exe from Releases
         - pipx / pip
