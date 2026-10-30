@@ -1,7 +1,7 @@
 # Security
 
 Fab Downloader stores an Epic Games session on your computer (see
-[Signing in](README.md#signing-in)), so security problems matter even in a small tool.
+[Usage](README.md#usage)), so security problems matter even in a small tool.
 
 ## Reporting a vulnerability
 

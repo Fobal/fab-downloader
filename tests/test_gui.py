@@ -14,8 +14,8 @@ from fabdl.workflow import UpdateStatus
 
 from .fakes import FakeHttp, MemoryStore, make_plugin, make_project, token_response
 
-ALL_COLUMNS = ("title", "type", "engines", "installed")
-FOLDER_COLUMNS = ("title", "type", "engines")
+ALL_COLUMNS = ("title", "type", "installed")
+FOLDER_COLUMNS = ("title", "type")
 
 
 def _library_page():
@@ -225,6 +225,14 @@ class SessionTests(AppTestCase):
         self.assertEqual(app.status_var.get(), "Signed out.")
         self.assertTrue(self._shown(app.sign_in_frame))
 
+    def test_sponsor_opens_the_sponsor_section_even_when_signed_out(self):
+        app = self._app(FakeHttp(), MemoryStore())
+        browser = self._patch(gui.webbrowser, "open")
+
+        app.sponsor_button.invoke()
+
+        browser.assert_called_once_with("https://github.com/Fobal/fab-downloader#sponsor")
+
 
 class DestinationTests(AppTestCase):
     def test_opens_the_saved_project_and_shows_installed_plugins(self):
@@ -235,10 +243,16 @@ class DestinationTests(AppTestCase):
         self.assertIn("source build", app.engine_label["text"])
         self.assertEqual(app.action_button["text"], "Add to project")
         self.assertEqual(tuple(app.tree["displaycolumns"]), ALL_COLUMNS)
-        self.assertEqual(self._rows(app)[0], ("Flow Graph", "CODE_PLUGIN", "UE_5.2, UE_5.3", "UE_5.3"))
+        self.assertEqual(self._rows(app)[0], ("Flow Graph", "Code plugin", "UE_5.3"))
         self.assertTrue(self._shown(app.updates_button))
         self.assertTrue(self._enabled(app.updates_button))
         self.assertFalse(self._enabled(app.folder_entry))
+
+    def test_hides_the_update_check_until_a_plugin_is_installed(self):
+        app = self._project_app()
+
+        self.assertEqual(tuple(app.tree["displaycolumns"]), ALL_COLUMNS)
+        self.assertFalse(self._shown(app.updates_button))
 
     def test_switching_to_folder_hides_the_project_parts(self):
         app = self._project_app(installed=[_record()], engine_version="UE_5.2")
@@ -255,6 +269,18 @@ class DestinationTests(AppTestCase):
         self.assertEqual(app.engine_var.get(), "UE_5.2", "the engine remembered for folder downloads")
         self.assertEqual(Settings.load(self.settings_path).destination, FOLDER)
 
+    def test_showing_the_installed_column_keeps_the_window_size(self):
+        self.root.deiconify()  # Tk only resizes a window to fit its widgets while it is shown.
+        app = self._signed_in_app()
+        size = self.root.geometry().split("+")[0]
+
+        self._switch(app, PROJECT)
+        self.root.update()
+
+        self.assertEqual(self.root.geometry().split("+")[0], size)
+        widths = sum(app.tree.column(column, "width") for column in ALL_COLUMNS)
+        self.assertLessEqual(widths, app.tree.winfo_width(), "the Installed column fits in the list")
+
     def test_project_without_a_project_asks_for_one(self):
         app = self._signed_in_app()
         self._select(app, "Flow Graph")
@@ -264,6 +290,14 @@ class DestinationTests(AppTestCase):
         self.assertFalse(self._enabled(app.action_button))
         self.assertTrue(self._enabled(app.project_button))
         self.assertIn("Choose your .uproject", app.status_var.get())
+
+    def test_switching_away_from_project_drops_the_hint(self):
+        app = self._signed_in_app()
+        self._switch(app, PROJECT)
+
+        self._switch(app, FOLDER)
+
+        self.assertEqual(app.status_var.get(), "2 items with Unreal Engine builds.")
 
     def test_chooses_a_project_and_remembers_it(self):
         uproject = make_project(self.temp / "engine")
@@ -276,6 +310,7 @@ class DestinationTests(AppTestCase):
 
         self.assertEqual(app.project.name, "Game")
         self.assertTrue(self._enabled(app.action_button))
+        self.assertEqual(app.status_var.get(), "2 items with Unreal Engine builds.", "the hint is gone")
         saved = Settings.load(self.settings_path)
         self.assertEqual((saved.destination, saved.project), (PROJECT, str(uproject.resolve())))
 
@@ -333,6 +368,7 @@ class InstallTests(AppTestCase):
 
         folder = app.project.plugins_dir / "FlowGraph"
         self.assertEqual(calls, [("a1", "a1-UE_5.3", "UE_5.3")])
+        self.assertTrue(self._shown(app.updates_button), "there is now a plugin to check")
         self.assertEqual(
             app.status_var.get().splitlines(),
             [
@@ -344,7 +380,7 @@ class InstallTests(AppTestCase):
         )
         self.assertEqual(app.result_folder, folder)
         self.assertTrue(self._shown(app.open_button))
-        self.assertEqual(self._rows(app)[0][3], "UE_5.3 - up to date")
+        self.assertEqual(self._rows(app)[0][2], "UE_5.3 - up to date")
         self.assertEqual(app.engine_var.get(), "UE_5.3")
 
     def test_asks_before_installing_another_engines_build(self):
@@ -367,7 +403,7 @@ class InstallTests(AppTestCase):
             self._settle(app)
 
         self.assertEqual([r.asset_id for r in check.call_args.args[2]], ["a1"])
-        self.assertEqual(self._rows(app)[0][3], "UE_5.3 - update available")
+        self.assertEqual(self._rows(app)[0][2], "UE_5.3 - update available")
         self.assertEqual(app.status_var.get(), "1 update available. Select the plugin and install it again.")
 
 
@@ -450,7 +486,7 @@ class EngineDestinationTests(AppTestCase):
         self._select(app, "Flow Graph")
 
         self.assertEqual(app.engine_var.get(), "UE_5.3", "the engine's version")
-        self.assertEqual(self._rows(app)[0][3], "UE_5.3", "plugins installed in that engine")
+        self.assertEqual(self._rows(app)[0][2], "UE_5.3", "plugins installed in that engine")
         self.assertEqual(Settings.load(self.settings_path).engine_dir, str(engines[1].root))
 
         def fake_install(http, session, item, version, engine, *, on_manifest, report):

@@ -43,5 +43,8 @@ fab-downloader = "fabdl.gui:main"
 [tool.setuptools]
 packages = ["fabdl"]
 
+[tool.setuptools.package-data]
+fabdl = ["icon.ico"]
+
 [tool.setuptools.dynamic]
 version = { attr = "fabdl.__version__" }

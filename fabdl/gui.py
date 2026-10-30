@@ -31,13 +31,31 @@ from .settings import SETTINGS_PATH, Settings
 from .workflow import EXPECTED_ERRORS, UpdateStatus
 
 TITLE = "Fab Downloader"
+ICON_PATH = Path(__file__).with_name("icon.ico")
+_SPONSOR_URL = "https://github.com/Fobal/fab-downloader#sponsor"
 FOLDER, PROJECT, ENGINE = "folder", "project", "engine"
 _ACTION_LABELS = {FOLDER: "Download", PROJECT: "Add to project", ENGINE: "Install to engine"}
+_PROJECT_HINT = "Choose your .uproject with the ... button next to Project."
+_ENGINE_HINT = "No Unreal Engine installs were found. Choose an engine folder with the ... button."
 _POLL_MS = 50
 _CLIPBOARD_POLL_MS = 500
 _CLIPBOARD_WATCH_SECONDS = 600
-_ALL_COLUMNS = ("title", "type", "engines", "installed")
-_FOLDER_COLUMNS = ("title", "type", "engines")
+_ALL_COLUMNS = ("title", "type", "installed")
+_FOLDER_COLUMNS = ("title", "type")
+_COLUMN_WIDTHS = {"title": 360, "type": 140, "installed": 220}  # Before stretching to fill the list.
+
+# The window's light theme.
+_BACKGROUND = "#FFFFFF"
+_HEADER = "#F6F8FA"  # Header bar, list headings, striped rows and inactive fields.
+_BORDER = "#D0D7DE"
+_TEXT = "#1F2328"
+_MUTED = "#59636E"
+_DISABLED = "#8C959F"
+_HOVER = "#EEF1F4"
+_ACCENT = "#0969DA"
+_ACCENT_HOVER = "#0757BA"
+_SELECTED = "#DDF4FF"
+_SPONSOR = "#BF3989"
 
 
 class SignInRequired(Exception):
@@ -140,123 +158,133 @@ class App:
     def _build(self) -> None:
         root = self.root
         root.title(TITLE)
-        root.minsize(720, 600)
+        root.iconbitmap(default=str(ICON_PATH))  # default= also covers dialogs.
+        scale = root.winfo_fpixels("1i") / 96
+        root.minsize(round(760 * scale), round(640 * scale))
+        # A set size keeps the window still when the Installed column or the sign-in steps appear;
+        # otherwise Tk resizes it to fit whatever its widgets ask for.
+        root.geometry(f"{round(900 * scale)}x{round(720 * scale)}")
         root.columnconfigure(0, weight=1)
-        root.rowconfigure(2, weight=1)
-        # Treeview rows have a fixed pixel height; size them from the font so high-DPI text fits.
-        line_height = tkfont.nametofont("TkDefaultFont", root=root).metrics("linespace")
-        ttk.Style(root).configure("Treeview", rowheight=line_height + 6)
+        root.rowconfigure(3, weight=1)
+        self.fonts = _apply_theme(root)
 
-        account = ttk.Frame(root, padding=(12, 12, 12, 0))
-        account.grid(row=0, column=0, sticky="ew")
-        account.columnconfigure(0, weight=1)
-        self.account_label = ttk.Label(account, text="Checking the saved session...")
-        self.account_label.grid(row=0, column=0, sticky="w")
-        self.sign_out_button = ttk.Button(account, text="Sign out", command=self._sign_out)
-        self.sign_out_button.grid(row=0, column=1)
+        header = ttk.Frame(root, style="Header.TFrame", padding=(16, 10))
+        header.grid(row=0, column=0, sticky="ew")
+        header.columnconfigure(1, weight=1)
+        ttk.Label(header, text=TITLE, style="Title.TLabel").grid(row=0, column=0, sticky="w")
+        self.account_label = ttk.Label(header, text="Checking the saved session...", style="Header.TLabel")
+        self.account_label.grid(row=0, column=1, sticky="e", padx=(0, 10))
+        self.sign_out_button = ttk.Button(header, text="Sign out", command=self._sign_out)
+        self.sign_out_button.grid(row=0, column=2)
         self.sign_out_button.grid_remove()
+        ttk.Frame(root, style="Border.TFrame", height=1).grid(row=1, column=0, sticky="ew")
 
         self.sign_in_frame = ttk.LabelFrame(root, text="Sign in to Epic", padding=12)
-        self.sign_in_frame.grid(row=1, column=0, sticky="ew", padx=12, pady=(12, 0))
+        self.sign_in_frame.grid(row=2, column=0, sticky="ew", padx=16, pady=(14, 0))
         self.sign_in_frame.columnconfigure(0, weight=1)
         ttk.Label(
             self.sign_in_frame, text="1. Open the Epic login page and sign in. The page then shows JSON text."
         ).grid(row=0, column=0, columnspan=2, sticky="w")
-        self.login_button = ttk.Button(self.sign_in_frame, text="Open Epic login", command=self._open_login)
-        self.login_button.grid(row=1, column=0, sticky="w", pady=(6, 0))
+        self.login_button = ttk.Button(
+            self.sign_in_frame, text="Open Epic login", style="Accent.TButton", command=self._open_login
+        )
+        self.login_button.grid(row=1, column=0, sticky="w", pady=(8, 0))
         ttk.Label(
             self.sign_in_frame,
             text='2. Copy the whole page (Ctrl+A, Ctrl+C) to sign in, or paste the "authorizationCode" value here:',
-        ).grid(
-            row=2, column=0, columnspan=2, sticky="w", pady=(12, 0)
-        )
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(14, 0))
         self.code_var = tk.StringVar()
         self.code_entry = ttk.Entry(self.sign_in_frame, textvariable=self.code_var)
-        self.code_entry.grid(row=3, column=0, sticky="ew", pady=(6, 0))
+        self.code_entry.grid(row=3, column=0, sticky="ew", pady=(8, 0))
         self.code_entry.bind("<Return>", lambda _: self._sign_in())
         self.sign_in_button = ttk.Button(self.sign_in_frame, text="Sign in", command=self._sign_in)
-        self.sign_in_button.grid(row=3, column=1, padx=(6, 0), pady=(6, 0))
+        self.sign_in_button.grid(row=3, column=1, padx=(8, 0), pady=(8, 0))
         self.sign_in_frame.grid_remove()
 
-        library = ttk.Frame(root, padding=(12, 12, 12, 0))
-        library.grid(row=2, column=0, sticky="nsew")
+        library = ttk.Frame(root, padding=(16, 14, 16, 0))
+        library.grid(row=3, column=0, sticky="nsew")
         library.columnconfigure(1, weight=1)
         library.rowconfigure(1, weight=1)
         ttk.Label(library, text="Search").grid(row=0, column=0, sticky="w")
         self.search_var = tk.StringVar()
         self.search_var.trace_add("write", lambda *_: self._show_items())
-        ttk.Entry(library, textvariable=self.search_var).grid(row=0, column=1, sticky="ew", padx=6)
+        ttk.Entry(library, textvariable=self.search_var).grid(row=0, column=1, sticky="ew", padx=8)
         self.refresh_button = ttk.Button(library, text="Refresh", command=self._load_library)
         self.refresh_button.grid(row=0, column=2)
         self.updates_button = ttk.Button(library, text="Check for updates", command=self._check_updates)
-        self.updates_button.grid(row=0, column=3, padx=(6, 0))
-        self.tree = ttk.Treeview(library, columns=_ALL_COLUMNS, show="headings", selectmode="browse")
-        for column, heading, width, stretch in (
-            ("title", "Title", 280, True),
-            ("type", "Type", 120, False),
-            ("engines", "Engine versions", 180, True),
-            ("installed", "Installed", 200, True),
-        ):
+        self.updates_button.grid(row=0, column=3, padx=(8, 0))
+        # The list and its scrollbar share one border.
+        listing = ttk.Frame(library, style="Border.TFrame", padding=1)
+        listing.grid(row=1, column=0, columnspan=4, sticky="nsew", pady=(10, 0))
+        listing.columnconfigure(0, weight=1)
+        listing.rowconfigure(0, weight=1)
+        self.tree = ttk.Treeview(listing, columns=_ALL_COLUMNS, show="headings", selectmode="browse")
+        for column, heading, stretch in (("title", "Title", True), ("type", "Type", False), ("installed", "Installed", True)):
             self.tree.heading(column, text=heading, anchor="w")
-            self.tree.column(column, width=width, stretch=stretch)
-        self.tree.grid(row=1, column=0, columnspan=4, sticky="nsew", pady=(6, 0))
+            self.tree.column(column, width=_COLUMN_WIDTHS[column], stretch=stretch)
+        self.tree.tag_configure("stripe", background=_HEADER)
+        self.tree.grid(row=0, column=0, sticky="nsew")
         self.tree.bind("<<TreeviewSelect>>", lambda _: self._item_selected())
-        scrollbar = ttk.Scrollbar(library, orient="vertical", command=self.tree.yview)
-        scrollbar.grid(row=1, column=4, sticky="ns", pady=(6, 0))
-        self.tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar = ttk.Scrollbar(listing, orient="vertical", command=self.tree.yview)
+        scrollbar.grid(row=0, column=1, sticky="ns")
+        self.tree.configure(yscrollcommand=partial(_set_scrollbar, scrollbar))
         # Shown over the list while the library loads; placed on top of the tree, not in the grid.
-        self.loading_overlay = ttk.Frame(library, padding=16)
-        ttk.Label(self.loading_overlay, text="Loading your Fab library...").pack()
-        self.loading_bar = ttk.Progressbar(self.loading_overlay, mode="indeterminate", length=220)
-        self.loading_bar.pack(pady=(8, 0))
+        self.loading_overlay = ttk.Frame(library, style="Border.TFrame", padding=1)
+        loading = ttk.Frame(self.loading_overlay, padding=16)
+        loading.pack()
+        ttk.Label(loading, text="Loading your Fab library...", style="Muted.TLabel").pack()
+        self.loading_bar = ttk.Progressbar(loading, mode="indeterminate", length=220)
+        self.loading_bar.pack(pady=(10, 0))
 
-        actions = ttk.Frame(root, padding=12)
-        actions.grid(row=3, column=0, sticky="ew")
+        actions = ttk.Frame(root, padding=(16, 14, 16, 0))
+        actions.grid(row=4, column=0, sticky="ew")
         actions.columnconfigure(2, weight=1)
-        ttk.Label(actions, text="Engine").grid(row=0, column=0, sticky="w")
+        ttk.Label(actions, text="Engine version").grid(row=0, column=0, sticky="w", padx=(0, 12))
         self.engine_var = tk.StringVar()
         self.engine_box = ttk.Combobox(actions, textvariable=self.engine_var, state="disabled", width=12)
-        self.engine_box.grid(row=0, column=1, columnspan=2, sticky="w", padx=6)
+        self.engine_box.grid(row=0, column=1, columnspan=2, sticky="w")
         self.engine_box.bind("<<ComboboxSelected>>", lambda _: self._engine_selected())
 
         destination = self.settings.destination if self.settings.destination in _ACTION_LABELS else FOLDER
         self.destination_var = tk.StringVar(value=destination)
-        ttk.Label(actions, text="Save to").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        ttk.Label(actions, text="Save to").grid(row=1, column=0, sticky="w", padx=(0, 12), pady=(12, 0))
         self.folder_radio = ttk.Radiobutton(
             actions, text="Folder", value=FOLDER, variable=self.destination_var, command=self._destination_changed
         )
-        self.folder_radio.grid(row=1, column=1, sticky="w", padx=6, pady=(10, 0))
+        self.folder_radio.grid(row=1, column=1, sticky="w", padx=(0, 12), pady=(12, 0))
         self.folder_var = tk.StringVar(value=self.settings.download_folder or str(_downloads_folder()))
         self.folder_var.trace_add("write", lambda *_: self._update_controls())
         self.folder_entry = ttk.Entry(actions, textvariable=self.folder_var)
-        self.folder_entry.grid(row=1, column=2, sticky="ew", pady=(10, 0))
-        self.folder_button = ttk.Button(actions, text="...", width=3, command=self._browse_folder)
-        self.folder_button.grid(row=1, column=3, padx=(6, 0), pady=(10, 0))
+        self.folder_entry.grid(row=1, column=2, sticky="ew", pady=(12, 0))
+        self.folder_button = ttk.Button(actions, text="...", width=3, style="Browse.TButton", command=self._browse_folder)
+        self.folder_button.grid(row=1, column=3, padx=(8, 0), pady=(12, 0))
 
         self.project_radio = ttk.Radiobutton(
             actions, text="Project", value=PROJECT, variable=self.destination_var, command=self._destination_changed
         )
-        self.project_radio.grid(row=2, column=1, sticky="w", padx=6, pady=(6, 0))
+        self.project_radio.grid(row=2, column=1, sticky="w", padx=(0, 12), pady=(8, 0))
         self.project_var = tk.StringVar()
         self.project_entry = ttk.Entry(actions, textvariable=self.project_var, state="readonly", cursor="hand2")
-        self.project_entry.grid(row=2, column=2, sticky="ew", pady=(6, 0))
+        self.project_entry.grid(row=2, column=2, sticky="ew", pady=(8, 0))
         # The path is read-only, so a click opens the picker instead of placing a caret.
         self.project_entry.bind("<Button-1>", lambda _: self._project_field_clicked())
-        self.project_button = ttk.Button(actions, text="...", width=3, command=self._choose_project)
-        self.project_button.grid(row=2, column=3, padx=(6, 0), pady=(6, 0))
-        self.engine_label = ttk.Label(actions, text="")
-        self.engine_label.grid(row=3, column=2, columnspan=2, sticky="w", pady=(2, 0))
+        self.project_button = ttk.Button(actions, text="...", width=3, style="Browse.TButton", command=self._choose_project)
+        self.project_button.grid(row=2, column=3, padx=(8, 0), pady=(8, 0))
+        # The project's engine; hidden until a project is open.
+        self.engine_label = ttk.Label(actions, text="", style="Muted.TLabel")
+        self.engine_label.grid(row=3, column=2, columnspan=2, sticky="w", pady=(4, 0))
+        self.engine_label.grid_remove()
 
         self.engine_radio = ttk.Radiobutton(
             actions, text="Engine", value=ENGINE, variable=self.destination_var, command=self._destination_changed
         )
-        self.engine_radio.grid(row=4, column=1, sticky="w", padx=6, pady=(6, 0))
+        self.engine_radio.grid(row=4, column=1, sticky="w", padx=(0, 12), pady=(8, 0))
         self.engine_choice = ttk.Combobox(
             actions, state="readonly", values=[engine.describe() for engine in self.engines]
         )
-        self.engine_choice.grid(row=4, column=2, sticky="ew", pady=(6, 0))
-        self.engine_button = ttk.Button(actions, text="...", width=3, command=self._browse_engine)
-        self.engine_button.grid(row=4, column=3, padx=(6, 0), pady=(6, 0))
+        self.engine_choice.grid(row=4, column=2, sticky="ew", pady=(8, 0))
+        self.engine_button = ttk.Button(actions, text="...", width=3, style="Browse.TButton", command=self._browse_engine)
+        self.engine_button.grid(row=4, column=3, padx=(8, 0), pady=(8, 0))
         self.engine_choice.bind("<<ComboboxSelected>>", lambda _: self._engine_dir_selected())
         # Clicking a greyed-out row's field selects that destination.
         self.folder_entry.bind("<Button-1>", lambda _: self._select_destination(FOLDER), add="+")
@@ -267,17 +295,28 @@ class App:
         if self.engines:
             self.engine_choice.current(saved_engine)
 
-        self.action_button = ttk.Button(actions, text="Download", command=self._start_action)
-        self.action_button.grid(row=5, column=2, columnspan=2, sticky="e", pady=(12, 0))
-        self.progress = ttk.Progressbar(actions, mode="determinate")
-        self.progress.grid(row=6, column=0, columnspan=4, sticky="ew", pady=(12, 0))
+        ttk.Frame(root, style="Border.TFrame", height=1).grid(row=5, column=0, sticky="ew", padx=16, pady=(16, 0))
+        status = ttk.Frame(root, padding=(16, 12, 16, 0))
+        status.grid(row=6, column=0, sticky="ew")
+        status.columnconfigure(0, weight=1)
+        self.progress = ttk.Progressbar(status, mode="determinate")
+        self.progress.grid(row=0, column=0, columnspan=3, sticky="ew")
         self.status_var = tk.StringVar()
-        ttk.Label(actions, textvariable=self.status_var, wraplength=580, justify="left").grid(
-            row=7, column=0, columnspan=3, sticky="w", pady=(6, 0)
+        ttk.Label(status, textvariable=self.status_var, style="Muted.TLabel", wraplength=520, justify="left").grid(
+            row=1, column=0, sticky="w", pady=(10, 0)
         )
-        self.open_button = ttk.Button(actions, text="Open folder", command=self._open_result)
-        self.open_button.grid(row=7, column=3, sticky="ne", pady=(6, 0))
+        self.open_button = ttk.Button(status, text="Open folder", command=self._open_result)
+        self.open_button.grid(row=1, column=1, sticky="ne", padx=(8, 0), pady=(10, 0))
         self.open_button.grid_remove()
+        self.action_button = ttk.Button(status, text="Download", style="Accent.TButton", command=self._start_action)
+        self.action_button.grid(row=1, column=2, sticky="ne", padx=(8, 0), pady=(10, 0))
+
+        footer = ttk.Frame(root, padding=(16, 14, 16, 8))
+        footer.grid(row=7, column=0, sticky="ew")
+        self.sponsor_button = ttk.Button(
+            footer, text="♥ Support the dev", style="Link.TButton", cursor="hand2", command=self._open_sponsor
+        )
+        self.sponsor_button.pack(side="right")
 
     # Background work
 
@@ -354,7 +393,7 @@ class App:
         if session:
             self._load_library()
         else:
-            self.status_var.set("Sign in to see your Fab library.")
+            self.status_var.set(self._library_status())
 
     def _set_session(self, session: Session | None) -> None:
         self.session = session
@@ -380,6 +419,9 @@ class App:
         self.clipboard_deadline = time.monotonic() + _CLIPBOARD_WATCH_SECONDS
         if self.clipboard_job is None:
             self.clipboard_job = self.root.after(_CLIPBOARD_POLL_MS, self._watch_clipboard)
+
+    def _open_sponsor(self) -> None:
+        webbrowser.open(_SPONSOR_URL)
 
     def _watch_clipboard(self) -> None:
         self._stop_clipboard_watch()  # Keep a single pending check.
@@ -428,21 +470,25 @@ class App:
         self.settings.destination = self.destination
         self._save_settings()
         self._apply_destination()
+        self._show_destination_hint()
+
+    def _show_destination_hint(self) -> None:
+        """Say what the destination still needs, or replace a hint that no longer applies."""
         if self.busy:
             return
         if self.destination == PROJECT and self.project is None:
-            self.status_var.set("Choose your .uproject with the ... button next to Project.")
+            self.status_var.set(_PROJECT_HINT)
         elif self.destination == ENGINE and not self.engines:
-            self.status_var.set("No Unreal Engine installs were found. Choose an engine folder with the ... button.")
+            self.status_var.set(_ENGINE_HINT)
+        elif self.status_var.get() in (_PROJECT_HINT, _ENGINE_HINT):
+            self.status_var.set(self._library_status())
 
     def _apply_destination(self) -> None:
-        """Match the columns, update check, button caption and installed plugins to the destination."""
-        installs = self.destination != FOLDER
-        self.tree.configure(displaycolumns=_ALL_COLUMNS if installs else _FOLDER_COLUMNS)
-        if installs:
-            self.updates_button.grid()
-        else:
-            self.updates_button.grid_remove()
+        """Match the columns, button caption and installed plugins to the destination."""
+        self.tree.configure(displaycolumns=_FOLDER_COLUMNS if self.destination == FOLDER else _ALL_COLUMNS)
+        # Start the columns over, or the Installed column lands past the edge of a stretched Title.
+        for column, width in _COLUMN_WIDTHS.items():
+            self.tree.column(column, width=width)
         self.action_button.configure(text=_ACTION_LABELS[self.destination])
         self.updates = {}
         self.engine_item_id = None  # The default engine version depends on the destination.
@@ -490,6 +536,7 @@ class App:
             self.settings.engine_dir = str(engine.root)
             self._save_settings()
         self._apply_destination()
+        self._show_destination_hint()
 
     def _browse_folder(self) -> None:
         chosen = filedialog.askdirectory(
@@ -507,6 +554,7 @@ class App:
             self._set_project(load_project(Path(self.settings.project)))
         except ProjectError as error:
             self.engine_label.configure(text=f"Could not open the last project: {error}")
+            self.engine_label.grid()
 
     def _choose_project(self) -> None:
         current = Path(self.settings.project).parent if self.settings.project else Path.home()
@@ -527,11 +575,13 @@ class App:
         self.settings.project = str(project.path)
         self._save_settings()
         self._apply_destination()
+        self._show_destination_hint()
 
     def _set_project(self, project: Project) -> None:
         self.project = project
         self.project_var.set(str(project.path))
         self.engine_label.configure(text=f"Engine: {project.engine.describe()}")
+        self.engine_label.grid()
 
     def _scan_installed(self) -> None:
         target = self.plugin_target()
@@ -562,7 +612,12 @@ class App:
         self._show_loading(False)
         self.items = sorted(items, key=lambda item: item.title.casefold())
         self._show_items()
-        self.status_var.set(f"{len(items)} items with Unreal Engine builds.")
+        self.status_var.set(self._library_status())
+
+    def _library_status(self) -> str:
+        if self.session is None:
+            return "Sign in to see your Fab library."
+        return f"{len(self.items)} items with Unreal Engine builds."
 
     def _show_items(self) -> None:
         selected = self.selected_item()
@@ -570,9 +625,9 @@ class App:
         visible = find_items(self.items, search) if search else self.items
         self.tree.delete(*self.tree.get_children())
         self.rows = {}
-        for item in visible:
-            values = (item.title, item.distribution_method or "-", ", ".join(item.engine_versions), self._installed_text(item))
-            row = self.tree.insert("", "end", values=values)
+        for index, item in enumerate(visible):
+            values = (item.title, _type_text(item), self._installed_text(item))
+            row = self.tree.insert("", "end", values=values, tags=("stripe",) if index % 2 else ())
             self.rows[row] = item
             if item == selected:
                 self.tree.selection_set(row)
@@ -772,11 +827,17 @@ class App:
         _enable(self.sign_in_button, idle)
         _enable(self.sign_out_button, idle)
         _enable(self.refresh_button, idle and signed_in)
-        _enable(self.updates_button, idle and signed_in and bool(self.installed) and bool(self.items))
+        # Only plugins this tool installed can be checked, so the button waits until there is one.
+        if self.installed:
+            self.updates_button.grid()
+        else:
+            self.updates_button.grid_remove()
+        _enable(self.updates_button, idle and signed_in and bool(self.items))
         for radio in (self.folder_radio, self.project_radio, self.engine_radio):
             _enable(radio, idle)
         _enable(self.folder_entry, idle and destination == FOLDER)
         _enable(self.folder_button, idle and destination == FOLDER)
+        _enable(self.project_entry, idle and destination == PROJECT)
         _enable(self.project_button, idle and destination == PROJECT)
         _enable(self.engine_choice, idle and destination == ENGINE and bool(self.engines))
         _enable(self.engine_button, idle and destination == ENGINE)
@@ -808,6 +869,164 @@ def _with_custom_engines(engines: list[Engine], folders: list[str]) -> list[Engi
         if _engine_index(engines, engine.root) is None:
             engines.append(engine)
     return engines
+
+
+def _set_scrollbar(scrollbar: ttk.Scrollbar, first: str, last: str) -> None:
+    """Show the scrollbar only while the list is longer than it can show."""
+    if float(first) <= 0 and float(last) >= 1:
+        scrollbar.grid_remove()
+    else:
+        scrollbar.grid()
+    scrollbar.set(first, last)
+
+
+def _type_text(item: LibraryItem) -> str:
+    """CODE_PLUGIN reads as Code plugin."""
+    return item.distribution_method.replace("_", " ").capitalize() or "-"
+
+
+def _apply_theme(root: tk.Tk) -> list[tkfont.Font]:
+    """Style the ttk widgets as a flat light theme, and return the fonts it created.
+
+    Built on clam, the one standard theme whose colors can all be changed. Sizes are given in
+    pixels at 96 DPI and scaled, because clam draws its arrows and indicators in pixels.
+    """
+    scale = float(root.tk.call("tk", "scaling")) / (96 / 72)
+
+    def px(size: float) -> int:
+        return round(size * scale)
+
+    default_font = tkfont.nametofont("TkDefaultFont", root=root)
+    for name in ("TkDefaultFont", "TkTextFont", "TkHeadingFont"):
+        tkfont.nametofont(name, root=root).configure(size=10)
+    title_font = default_font.copy()
+    title_font.configure(size=13, weight="bold")
+    bold_font = default_font.copy()
+    bold_font.configure(weight="bold")
+    link_font = default_font.copy()
+    link_font.configure(size=12)
+
+    style = ttk.Style(root)
+    style.theme_use("clam")
+    root.configure(background=_BACKGROUND)
+    style.configure(
+        ".",
+        background=_BACKGROUND,
+        foreground=_TEXT,
+        bordercolor=_BORDER,
+        lightcolor=_BACKGROUND,
+        darkcolor=_BACKGROUND,
+        troughcolor=_HEADER,
+        focuscolor=_ACCENT,
+        selectbackground=_ACCENT,
+        selectforeground="#FFFFFF",
+        fieldbackground=_BACKGROUND,
+        insertcolor=_TEXT,
+        arrowcolor=_MUTED,
+        font=default_font,
+    )
+    style.map(".", foreground=[("disabled", _DISABLED)])
+
+    style.configure("Header.TFrame", background=_HEADER)
+    style.configure("Border.TFrame", background=_BORDER)  # Shows as a border around a padded child.
+    style.configure("Header.TLabel", background=_HEADER, foreground=_MUTED)
+    style.configure("Title.TLabel", background=_HEADER, font=title_font)
+    style.configure("Section.TLabel", font=bold_font)
+    style.configure("Muted.TLabel", foreground=_MUTED)
+    style.configure("TLabelframe", bordercolor=_BORDER, lightcolor=_BORDER, darkcolor=_BORDER)
+    style.configure("TLabelframe.Label", font=bold_font)
+
+    style.configure("TButton", background=_BACKGROUND, padding=(px(12), px(4)), anchor="center")
+    style.configure("Browse.TButton", padding=(px(4), px(4)))
+    style.map(
+        "TButton",
+        background=[("disabled", _BACKGROUND), ("pressed", _BORDER), ("active", _HOVER)],
+        lightcolor=[("disabled", _BACKGROUND), ("pressed", _BORDER), ("active", _HOVER)],
+        darkcolor=[("disabled", _BACKGROUND), ("pressed", _BORDER), ("active", _HOVER)],
+        bordercolor=[("focus", _ACCENT)],
+    )
+    style.configure(
+        "Accent.TButton", background=_ACCENT, foreground="#FFFFFF", bordercolor=_ACCENT,
+        lightcolor=_ACCENT, darkcolor=_ACCENT, font=bold_font, padding=(px(20), px(5)),
+    )
+    accent = [("disabled", _HEADER), ("pressed", _ACCENT_HOVER), ("active", _ACCENT_HOVER)]
+    style.map(
+        "Accent.TButton",
+        background=accent,
+        lightcolor=accent,
+        darkcolor=accent,
+        bordercolor=[("disabled", _BORDER), ("focus", _ACCENT_HOVER)],
+        foreground=[("disabled", _DISABLED)],
+    )
+    # A button drawn as a link: only its focus ring and label, no border.
+    style.layout(
+        "Link.TButton",
+        [("Button.focus", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})],
+    )
+    style.configure("Link.TButton", foreground=_SPONSOR, font=link_font, padding=0)
+
+    field = {"fieldbackground": [("disabled", _HEADER), ("readonly", _BACKGROUND)],
+             "bordercolor": [("focus", _ACCENT)],
+             "lightcolor": [("focus", _ACCENT)]}
+    style.configure("TEntry", padding=(px(6), px(4)))
+    style.map("TEntry", **field)
+    style.configure("TCombobox", padding=(px(6), px(4)), background=_BACKGROUND, arrowsize=px(14))
+    style.map(
+        "TCombobox",
+        **field,
+        background=[("disabled", _HEADER), ("active", _HOVER)],
+        # A readonly combobox highlights its text when focused; keep it plain.
+        selectbackground=[("readonly", _BACKGROUND)],
+        selectforeground=[("readonly", _TEXT)],
+    )
+    root.option_add("*TCombobox*Listbox.background", _BACKGROUND)
+    root.option_add("*TCombobox*Listbox.foreground", _TEXT)
+    root.option_add("*TCombobox*Listbox.selectBackground", _SELECTED)
+    root.option_add("*TCombobox*Listbox.selectForeground", _TEXT)
+    root.option_add("*TCombobox*Listbox.font", default_font)
+
+    style.configure(
+        "TRadiobutton", indicatorsize=px(14), indicatormargin=(0, 0, px(6), 0),
+        indicatorbackground=_BACKGROUND, indicatorforeground=_ACCENT,
+        upperbordercolor=_DISABLED, lowerbordercolor=_DISABLED,
+    )
+    style.map(
+        "TRadiobutton",
+        background=[("active", _BACKGROUND)],
+        indicatorbackground=[("disabled", _HEADER), ("pressed", _HOVER)],
+        indicatorforeground=[("disabled", _DISABLED)],
+        upperbordercolor=[("selected", "!disabled", _ACCENT)],
+        lowerbordercolor=[("selected", "!disabled", _ACCENT)],
+    )
+
+    # Treeview rows have a fixed pixel height; size them from the font so high-DPI text fits.
+    style.configure("Treeview", rowheight=default_font.metrics("linespace") + px(10), borderwidth=0)
+    style.map("Treeview", background=[("selected", _SELECTED)], foreground=[("selected", _TEXT)])
+    style.configure(
+        "Treeview.Heading", background=_HEADER, foreground=_MUTED, font=bold_font,
+        bordercolor=_BORDER, lightcolor=_HEADER, darkcolor=_HEADER, padding=(px(6), px(5)), relief="flat",
+    )
+    style.map("Treeview.Heading", background=[("active", _HOVER)])
+
+    # A slim scrollbar without arrow buttons.
+    style.layout(
+        "Vertical.TScrollbar",
+        [("Vertical.Scrollbar.trough", {"sticky": "ns", "children": [
+            ("Vertical.Scrollbar.thumb", {"expand": "1", "sticky": "nswe"}),
+        ]})],
+    )
+    style.configure(
+        "Vertical.TScrollbar", troughcolor=_BACKGROUND, background=_BORDER, bordercolor=_BACKGROUND,
+        lightcolor=_BORDER, darkcolor=_BORDER, arrowsize=px(10), gripcount=0,
+    )
+    style.map("Vertical.TScrollbar", background=[("active", _DISABLED)])
+
+    style.configure(
+        "Horizontal.TProgressbar", background=_ACCENT, troughcolor=_HEADER, bordercolor=_HEADER,
+        lightcolor=_ACCENT, darkcolor=_ACCENT, arrowsize=px(6),  # Clam draws the bar as a scrollbar thumb.
+    )
+    # Keep references: Tk deletes a named font once its Python object is collected.
+    return [title_font, bold_font, link_font]
 
 
 def _enable(widget: ttk.Widget, enabled: bool) -> None:

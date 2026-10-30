@@ -22,6 +22,14 @@ Bug reports, fixes and ideas are welcome.
    py -3 -m unittest discover -s tests -t .
    ```
 
-5. Update the README if the behaviour or the commands change.
+5. Update the README, or [docs/how-it-works.md](docs/how-it-works.md) for internals, if the
+   behaviour or the commands change.
+
+## Releases
+
+Pushing a tag `vX.Y.Z` that matches `fabdl.__version__` runs `.github/workflows/release.yml`:
+it runs the tests, builds `fab-downloader.exe` and the Python package, attaches them to a
+GitHub Release and publishes the package to PyPI with trusted publishing. The PyPI job runs only
+while the repository variable `PUBLISH_TO_PYPI` is `true`.
 
 By contributing, you agree that your contribution is licensed under the [GNU General Public License v3.0](LICENSE).

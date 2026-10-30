@@ -39,10 +39,12 @@ jobs:
         run: python -m pip install "pyinstaller==$PYINSTALLER_VERSION" "build==$BUILD_VERSION"
 
       # Only the window is released as an executable; the command line comes with pipx or the source.
+      # --icon and --add-data paths are absolute because PyInstaller resolves them from --specpath.
       - name: Build the executable
         run: |
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name fab-downloader \
             --paths . --distpath dist/exe --workpath build/pyinstaller --specpath build \
+            --icon "$GITHUB_WORKSPACE/fabdl/icon.ico" --add-data "$GITHUB_WORKSPACE/fabdl/icon.ico;fabdl" \
             packaging/fabdl_gui.py
 
       # A windowed executable that fails shows an error dialog instead of exiting, hence the timeout.
