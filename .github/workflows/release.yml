@@ -69,8 +69,49 @@ jobs:
           path: dist/python/*
           if-no-files-found: error
 
+  # The executable runs on Linux with the same or a newer glibc than the build machine's, so it
+  # is built on the oldest Ubuntu runner.
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install Xvfb
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+
+      - name: Unit tests
+        run: xvfb-run -a python -m unittest discover -s tests -t .
+
+      - name: Install PyInstaller
+        run: python -m pip install "pyinstaller==$PYINSTALLER_VERSION"
+
+      # Tk on X11 cannot read .ico files, so the window uses icon.png here.
+      - name: Build the executable
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name fab-downloader-linux-x86_64 \
+            --paths . --distpath dist/exe --workpath build/pyinstaller --specpath build \
+            --add-data "$GITHUB_WORKSPACE/fabdl/icon.png:fabdl" \
+            packaging/fabdl_gui.py
+
+      - name: Smoke test the executable
+        timeout-minutes: 2
+        env:
+          FABDL_SMOKE_TEST: "1"
+        run: xvfb-run -a dist/exe/fab-downloader-linux-x86_64
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: executable-linux
+          path: dist/exe/fab-downloader-linux-x86_64
+          if-no-files-found: error
+
   github-release:
-    needs: build
+    needs: [build, build-linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write

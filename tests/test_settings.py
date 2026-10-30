@@ -1,7 +1,9 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
+from fabdl import settings as settings_module
 from fabdl.settings import Settings
 
 
@@ -39,6 +41,22 @@ class SettingsTests(unittest.TestCase):
         Settings(custom_engines=["E:/UE_5.3", "F:/MyEngine"]).save(self.path)
 
         self.assertEqual(Settings.load(self.path).custom_engines, ["E:/UE_5.3", "F:/MyEngine"])
+
+
+class ConfigDirTests(unittest.TestCase):
+    def test_uses_appdata_on_windows(self):
+        with mock.patch.object(settings_module.sys, "platform", "win32"):
+            with mock.patch.dict(settings_module.os.environ, {"APPDATA": "C:/Users/me/AppData/Roaming"}):
+                self.assertEqual(settings_module._config_dir(), Path("C:/Users/me/AppData/Roaming"))
+
+    def test_follows_xdg_on_linux(self):
+        absolute = str(Path.home() / "xdg")
+        with mock.patch.object(settings_module.sys, "platform", "linux"):
+            with mock.patch.dict(settings_module.os.environ, {"XDG_CONFIG_HOME": absolute}):
+                self.assertEqual(settings_module._config_dir(), Path(absolute))
+            for value in ("", "relative/dir"):
+                with mock.patch.dict(settings_module.os.environ, {"XDG_CONFIG_HOME": value}):
+                    self.assertEqual(settings_module._config_dir(), Path.home() / ".config")
 
 
 if __name__ == "__main__":

@@ -4,19 +4,22 @@
 
 - **Login:** the Epic Games Launcher's public OAuth client, with the authorization-code flow.
 - **Session:** saved in `%APPDATA%\fab-downloader\session.bin`, encrypted for your Windows user
-  with DPAPI, and refreshed when it expires.
+  with DPAPI, and refreshed when it expires. On Linux it is saved unencrypted in
+  `~/.config/fab-downloader/session.bin` (or under `$XDG_CONFIG_HOME`), with permissions that
+  let only your user read it, like ssh keys.
 - **Clipboard:** the window only reacts to copied text that contains `authorizationCode`, and
   stops watching the clipboard once it signs in, or after 10 minutes.
 - **Settings:** the window remembers the destination, folder, project, engine and engine
-  version in `%APPDATA%\fab-downloader\settings.json`.
+  version in `settings.json` next to the session.
 
 ## Engines
 
 - **Detection** follows Unreal: an engine association like `5.3` is looked up in the
   launcher's install list (`%ProgramData%\Epic\UnrealEngineLauncher\LauncherInstalled.dat`),
   any other value in the engines registered under
-  `HKCU\Software\Epic Games\Unreal Engine\Builds`, and an empty one in the folders around the
-  project. The Engine list in the window comes from the same two places, plus engine folders
+  `HKCU\Software\Epic Games\Unreal Engine\Builds` (on Linux, the `[Installations]` section of
+  `~/.config/Epic/UnrealEngine/Install.ini`), and an empty one in the folders around the
+  project. Linux has no launcher, so there only registered engines are found. The Engine list in the window comes from the same two places, plus engine folders
   you add with **...** (an engine's root, or the `Engine` folder inside it).
 - **Staging:** downloads are assembled in the project's `Saved\fabdl` (or the engine's
   `Engine\Intermediate\fabdl`), on the same drive, so installing is a quick move.

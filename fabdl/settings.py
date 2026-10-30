@@ -4,10 +4,20 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
-APP_DATA = Path(os.environ.get("APPDATA") or Path.home()) / "fab-downloader"
+
+def _config_dir() -> Path:
+    """%APPDATA% on Windows, otherwise the XDG config folder (~/.config by default)."""
+    if sys.platform == "win32":
+        return Path(os.environ.get("APPDATA") or Path.home())
+    xdg = os.environ.get("XDG_CONFIG_HOME") or ""
+    return Path(xdg) if os.path.isabs(xdg) else Path.home() / ".config"  # XDG says to ignore relative paths.
+
+
+APP_DATA = _config_dir() / "fab-downloader"
 SETTINGS_PATH = APP_DATA / "settings.json"
 
 

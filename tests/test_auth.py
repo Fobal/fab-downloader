@@ -181,7 +181,6 @@ class LogoutTests(unittest.TestCase):
         self.assertFalse(logout(FakeHttp(), MemoryStore()))
 
 
-@unittest.skipUnless(sys.platform == "win32", "DPAPI is Windows only")
 class SessionStoreTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -190,11 +189,27 @@ class SessionStoreTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_round_trips_encrypted(self):
+    def test_round_trips(self):
+        self.store.save(_token())
+        self.store.save(_token("access2"))
+
+        self.assertEqual(self.store.load(), _token("access2"))
+
+    @unittest.skipUnless(sys.platform == "win32", "DPAPI is Windows only")
+    def test_encrypts_on_windows(self):
         self.store.save(_token())
 
         self.assertNotIn(b"access1", self.store.path.read_bytes())
-        self.assertEqual(self.store.load(), _token())
+
+    @unittest.skipIf(sys.platform == "win32", "Windows encrypts the file instead")
+    def test_only_the_owner_can_read_it_elsewhere(self):
+        self.store.path.parent.mkdir(parents=True)
+        self.store.path.write_bytes(b"old")
+        self.store.path.chmod(0o644)
+
+        self.store.save(_token())
+
+        self.assertEqual(self.store.path.stat().st_mode & 0o777, 0o600)
 
     def test_treats_unreadable_files_as_no_session(self):
         self.assertIsNone(self.store.load())

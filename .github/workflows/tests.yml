@@ -9,10 +9,11 @@ permissions:
 
 jobs:
   test:
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [windows-latest, ubuntu-latest]
         python-version: ["3.11", "3.13"]
     steps:
       - uses: actions/checkout@v7
@@ -24,4 +25,12 @@ jobs:
           python -m pip install pyflakes
           python -m pyflakes fabdl tests packaging fab-downloader.pyw
       - name: Unit tests
+        if: runner.os == 'Windows'
         run: python -m unittest discover -s tests -t . -v
+      # The window tests need a display; Xvfb provides a virtual one.
+      - name: Unit tests
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          xvfb-run -a python -m unittest discover -s tests -t . -v

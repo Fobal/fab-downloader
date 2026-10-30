@@ -2,12 +2,14 @@
 
 An engine association like "5.3" names a launcher install, listed in
 %ProgramData%\\Epic\\UnrealEngineLauncher\\LauncherInstalled.dat. Any other value, usually a GUID,
-names an engine registered under HKCU\\Software\\Epic Games\\Unreal Engine\\Builds. An empty value
-means the project sits inside the engine's folder tree.
+names an engine registered under HKCU\\Software\\Epic Games\\Unreal Engine\\Builds, or on Linux in
+the [Installations] section of ~/.config/Epic/UnrealEngine/Install.ini. An empty value means the
+project sits inside the engine's folder tree.
 """
 
 from __future__ import annotations
 
+import configparser
 import json
 import os
 import sys
@@ -19,6 +21,8 @@ LAUNCHER_LIST = (
     Path(os.environ.get("ProgramData") or r"C:\ProgramData") / "Epic" / "UnrealEngineLauncher" / "LauncherInstalled.dat"
 )
 _BUILDS_KEY = r"Software\Epic Games\Unreal Engine\Builds"
+# Where Unreal registers engines on Linux: FPlatformProcess::ApplicationSettingsDir() is ~/.config/Epic.
+INSTALL_INI = Path.home() / ".config" / "Epic" / "UnrealEngine" / "Install.ini"
 
 
 class ProjectError(Exception):
@@ -144,7 +148,7 @@ def read_engine(root: Path) -> Engine:
 
 def _registered_builds() -> dict[str, str]:
     if sys.platform != "win32":
-        return {}
+        return _install_ini_builds()
     import winreg
 
     try:
@@ -162,6 +166,19 @@ def _registered_builds() -> dict[str, str]:
             if isinstance(value, str):
                 builds[name] = value
             index += 1
+
+
+def _install_ini_builds() -> dict[str, str]:
+    """Engines registered on Linux, for example {"{1EB8...}": "/home/me/UnrealEngine"}."""
+    parser = configparser.ConfigParser(interpolation=None, strict=False)
+    parser.optionxform = str  # Keep the names' case; lookups compare them case-insensitively anyway.
+    try:
+        parser.read(INSTALL_INI, encoding="utf-8-sig")
+    except (configparser.Error, UnicodeDecodeError):
+        return {}
+    if not parser.has_section("Installations"):
+        return {}
+    return {name: root for name, root in parser.items("Installations") if root}
 
 
 def _launcher_installs() -> dict[str, str]:

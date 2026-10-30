@@ -9,6 +9,7 @@ from __future__ import annotations
 import ctypes
 import os
 import queue
+import subprocess
 import sys
 import threading
 import time
@@ -32,6 +33,7 @@ from .workflow import EXPECTED_ERRORS, UpdateStatus
 
 TITLE = "Fab Downloader"
 ICON_PATH = Path(__file__).with_name("icon.ico")
+ICON_PNG_PATH = Path(__file__).with_name("icon.png")  # For Tk on X11, which cannot read .ico files.
 _SPONSOR_URL = "https://github.com/Fobal/fab-downloader#sponsor"
 FOLDER, PROJECT, ENGINE = "folder", "project", "engine"
 _ACTION_LABELS = {FOLDER: "Download", PROJECT: "Add to project", ENGINE: "Install to engine"}
@@ -158,7 +160,7 @@ class App:
     def _build(self) -> None:
         root = self.root
         root.title(TITLE)
-        root.iconbitmap(default=str(ICON_PATH))  # default= also covers dialogs.
+        set_window_icon(root)
         scale = root.winfo_fpixels("1i") / 96
         root.minsize(round(760 * scale), round(640 * scale))
         # A set size keeps the window still when the Installed column or the sign-in steps appear;
@@ -249,7 +251,7 @@ class App:
         self.destination_var = tk.StringVar(value=destination)
         ttk.Label(actions, text="Save to").grid(row=1, column=0, sticky="w", padx=(0, 12), pady=(12, 0))
         self.folder_radio = ttk.Radiobutton(
-            actions, text="Folder", value=FOLDER, variable=self.destination_var, command=self._destination_changed
+            actions, text="Folder (recommended)", value=FOLDER, variable=self.destination_var, command=self._destination_changed
         )
         self.folder_radio.grid(row=1, column=1, sticky="w", padx=(0, 12), pady=(12, 0))
         self.folder_var = tk.StringVar(value=self.settings.download_folder or str(_downloads_folder()))
@@ -803,7 +805,10 @@ class App:
 
     def _open_result(self) -> None:
         if self.result_folder and self.result_folder.exists():
-            os.startfile(self.result_folder)
+            try:
+                _open_folder(self.result_folder)
+            except OSError as error:
+                messagebox.showerror(TITLE, f"Could not open {self.result_folder}: {error}", parent=self.root)
 
     # State
 
@@ -1031,6 +1036,22 @@ def _apply_theme(root: tk.Tk) -> list[tkfont.Font]:
 
 def _enable(widget: ttk.Widget, enabled: bool) -> None:
     widget.state(["!disabled"] if enabled else ["disabled"])
+
+
+def set_window_icon(root: tk.Tk) -> None:
+    """Give the window and the dialogs it opens the app icon."""
+    if sys.platform == "win32":
+        root.iconbitmap(default=str(ICON_PATH))
+    else:
+        # Tk copies the image into the icon, so the PhotoImage need not be kept.
+        root.iconphoto(True, tk.PhotoImage(master=root, file=str(ICON_PNG_PATH)))
+
+
+def _open_folder(folder: Path) -> None:
+    if sys.platform == "win32":
+        os.startfile(folder)
+    else:
+        subprocess.Popen(["xdg-open", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _downloads_folder() -> Path:

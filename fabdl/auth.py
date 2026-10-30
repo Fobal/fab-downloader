@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
+import sys
 import webbrowser
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -54,7 +56,11 @@ class Session:
 
 
 class SessionStore:
-    """Keeps Epic's token response on disk, encrypted for the current Windows user."""
+    """Keeps Epic's token response on disk.
+
+    On Windows it is encrypted for the current user. Elsewhere there is no DPAPI, so it is plain
+    JSON that only the owner may read, the way ssh keys and the GitHub CLI's token are kept.
+    """
 
     def __init__(self, path: Path):
         self.path = path
@@ -65,14 +71,22 @@ class SessionStore:
 
     def load(self) -> dict | None:
         try:
-            data = json.loads(dpapi.unprotect(self.path.read_bytes()))
+            data = self.path.read_bytes()
+            data = json.loads(dpapi.unprotect(data) if sys.platform == "win32" else data)
         except (OSError, ValueError):
             return None
         return data if isinstance(data, dict) else None
 
     def save(self, data: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_bytes(dpapi.protect(json.dumps(data).encode()))
+        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        text = json.dumps(data).encode()
+        if sys.platform == "win32":
+            self.path.write_bytes(dpapi.protect(text))
+            return
+        # A new file gets mode 0600 from the start, whatever an older file allowed.
+        self.path.unlink(missing_ok=True)
+        with os.fdopen(os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb") as file:
+            file.write(text)
 
     def clear(self) -> None:
         self.path.unlink(missing_ok=True)

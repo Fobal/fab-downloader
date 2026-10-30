@@ -104,6 +104,24 @@ class EngineTests(ProjectTestCase):
         with self.assertRaisesRegex(ProjectError, "not an Unreal Engine folder"):
             engine_from_folder(self.root / "MyEngine" / "Games")
 
+    def test_reads_engines_registered_in_install_ini(self):
+        ini = self.root / "Install.ini"
+        ini.write_text(
+            "[Installations]\n{1EB80B8E-475B-BF68-1D3D-21834B964495}=/home/me/UnrealEngine\nEmpty=\n"
+            "[Other]\nKey=/elsewhere\n"
+        )
+
+        with mock.patch.object(project_module, "INSTALL_INI", ini):
+            self.assertEqual(
+                project_module._install_ini_builds(),
+                {"{1EB80B8E-475B-BF68-1D3D-21834B964495}": "/home/me/UnrealEngine"},
+            )
+        with mock.patch.object(project_module, "INSTALL_INI", self.root / "missing.ini"):
+            self.assertEqual(project_module._install_ini_builds(), {})
+        ini.write_text("no section header")
+        with mock.patch.object(project_module, "INSTALL_INI", ini):
+            self.assertEqual(project_module._install_ini_builds(), {})
+
     def test_missing_launcher_list_means_no_installs(self):
         with mock.patch.object(project_module, "LAUNCHER_LIST", self.root / "missing.dat"):
             self.assertEqual(project_module._launcher_installs(), {})

@@ -2,8 +2,8 @@
 
 Get the Unreal Engine items in your Fab library without the Epic Games Launcher: add them to a
 project, install code plugins into an engine (including source-built engines, which the
-launcher cannot install into), or download a build for any engine version. Windows only, with
-a window and a command line.
+launcher cannot install into), or download a build for any engine version. Runs on Windows and
+Linux, with a window and a command line.
 
 ![The Fab Downloader window](https://raw.githubusercontent.com/Fobal/fab-downloader/main/docs/screenshot.png)
 
@@ -12,13 +12,17 @@ a window and a command line.
 
 ## Install
 
-- **Executable** (window only, no Python needed): download `fab-downloader.exe` from
-  [Releases](https://github.com/Fobal/fab-downloader/releases). It is not code-signed, so
-  SmartScreen or antivirus software may warn about it; if so, use pipx or the source.
+- **Executable** (window only, no Python needed): download it from
+  [Releases](https://github.com/Fobal/fab-downloader/releases).
+  - Windows: `fab-downloader.exe`. It is not code-signed, so SmartScreen or antivirus software
+    may warn about it; if so, use pipx or the source.
+  - Linux (x86-64, glibc 2.35 or newer, such as Ubuntu 22.04 or Debian 12):
+    `fab-downloader-linux-x86_64`. Make it executable with `chmod +x` first.
 - **pipx** (Python 3.11+): `pipx install fab-downloader`, then run `fab-downloader` for the
-  window or `fabdl` for the command line.
+  window or `fabdl` for the command line. On Linux the window needs Tkinter, which some
+  distributions package separately (`python3-tk` on Debian and Ubuntu).
 - **Source** (Python 3.11+, standard library only): clone the repo and run
-  `fab-downloader.pyw`, or `py -3 -m fabdl` for the command line.
+  `fab-downloader.pyw`, or `py -3 -m fabdl` (`python3 -m fabdl` on Linux) for the command line.
 
 ## Usage
 
@@ -26,7 +30,7 @@ a window and a command line.
    (Ctrl+A, Ctrl+C) and the window signs in, or paste just the `authorizationCode` value.
 2. Search your library, select an item and pick an engine version.
 3. Under **Save to**, choose a destination:
-   - **Folder:** **Download** saves the build to `<folder>\<title> <engine>`.
+   - **Folder** (recommended): **Download** saves the build to `<folder>\<title> <engine>`.
    - **Project:** pick a `.uproject`. **Add to project** puts a code plugin in `Plugins` or
      merges an asset pack into `Content`.
    - **Engine:** pick a detected engine, or browse to one. **Install to engine** puts a code
@@ -39,9 +43,10 @@ plugin needs enabling, you are told to do it in **Edit > Plugins**.
 For a project or engine, the **Installed** column lists the plugins Fab Downloader put there.
 **Check for updates** looks for newer builds; install an item again to update it.
 
-The window and the command line share one session, saved in
-`%APPDATA%\fab-downloader\session.bin` and encrypted for your Windows user with DPAPI.
-**Sign out**, or `fabdl logout`, deletes it.
+The window and the command line share one session. On Windows it is saved in
+`%APPDATA%\fab-downloader\session.bin` and encrypted for your Windows user with DPAPI. On Linux
+it is saved in `~/.config/fab-downloader/session.bin`, readable only by your user but not
+encrypted. **Sign out**, or `fabdl logout`, deletes it.
 
 Engine detection, backups and downloads are covered in more detail in
 [How it works](https://github.com/Fobal/fab-downloader/blob/main/docs/how-it-works.md).
@@ -71,6 +76,9 @@ To sign in, the first command that needs a session opens the Epic login page and
   change without notice and does not officially support.
 - Encrypted manifests and chunks are not supported.
 - Downloads cannot be paused or resumed; closing the window is the only way to cancel one.
+- Builds are requested for Windows unless `--platform` says otherwise, so a code plugin's
+  prebuilt binaries are Windows ones. On Linux, Unreal has to compile the plugin from its
+  source, which source-built engines and C++ projects do.
 
 ## Contributing
 

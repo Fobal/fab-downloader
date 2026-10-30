@@ -14,8 +14,9 @@ Only the latest release gets fixes.
 
 ## Keeping your account safe
 
-- Never share your `authorizationCode`, the copied login page or
-  `%APPDATA%\fab-downloader\session.bin`, including in issues.
-- Download `fab-downloader.exe` only from this repository's Releases page.
+- Never share your `authorizationCode`, the copied login page or `session.bin` (in
+  `%APPDATA%\fab-downloader` on Windows, `~/.config/fab-downloader` on Linux), including in
+  issues. On Linux the file is not encrypted, so keep it out of backups others can read.
+- Download the executables only from this repository's Releases page.
 - If you think your session leaked, run `fabdl logout` and change your Epic password, which
   ends your other sessions.
