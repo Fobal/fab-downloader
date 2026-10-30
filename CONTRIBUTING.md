@@ -28,9 +28,9 @@ Bug reports, fixes and ideas are welcome.
 ## Releases
 
 Pushing a tag `vX.Y.Z` that matches `fabdl.__version__` runs `.github/workflows/release.yml`:
-it runs the tests on Windows and Linux, builds `fab-downloader.exe`,
-`fab-downloader-linux-x86_64` and the Python package, attaches them to a
-GitHub Release and publishes the package to PyPI with trusted publishing. The PyPI job runs only
-while the repository variable `PUBLISH_TO_PYPI` is `true`.
+it runs the tests on Windows and Linux, attaches `fab-downloader.exe` and
+`fab-downloader-linux-x86_64` to a GitHub Release, and publishes the Python package to PyPI with
+trusted publishing. The PyPI job runs only while the repository variable `PUBLISH_TO_PYPI` is
+`true`.
 
 By contributing, you agree that your contribution is licensed under the [GNU General Public License v3.0](LICENSE).

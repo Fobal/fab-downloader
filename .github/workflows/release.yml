@@ -116,9 +116,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Only the executables: the sdist and wheel are published to PyPI.
       - uses: actions/download-artifact@v8
         with:
           path: dist
+          pattern: executable*
           merge-multiple: true
       - name: Create the GitHub release
         env:
