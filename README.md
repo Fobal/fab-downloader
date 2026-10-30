@@ -67,7 +67,7 @@ platform.
 To sign in, the first command that needs a session opens the Epic login page and asks for the
 `authorizationCode` value.
 
-## Limits
+## Limits (Work in progress)
 
 - Fab has no public API. Fab Downloader uses the launcher's private endpoints, which Epic can
   change without notice and does not officially support.
