@@ -11,8 +11,8 @@ Download Fab Marketplace assets you own for any engine version without Epic Game
 
 - **Executable** (window only, no Python needed): download it from
   [Releases](https://github.com/Fobal/fab-downloader/releases).
-  - Windows: `fab-downloader.exe`. It is not code-signed, so SmartScreen or antivirus software
-    may warn about it; if so, use pipx or the source.
+  - Windows: `fab-downloader-windows.exe`. It is not code-signed, so SmartScreen or antivirus
+    software may warn about it; if so, use pipx or the source.
   - Linux (x86-64, glibc 2.35 or newer, such as Ubuntu 22.04 or Debian 12):
     `fab-downloader-linux-x86_64`. Make it executable with `chmod +x` first.
 - **pipx** (Python 3.11+): `pipx install fab-downloader`, then run `fab-downloader` for the

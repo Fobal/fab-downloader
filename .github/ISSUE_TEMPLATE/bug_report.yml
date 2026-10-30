@@ -20,7 +20,7 @@ body:
     attributes:
       label: How you run Fab Downloader
       options:
-        - fab-downloader.exe from Releases
+        - fab-downloader-windows.exe from Releases
         - pipx / pip
         - From source
     validations:

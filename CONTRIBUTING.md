@@ -28,7 +28,7 @@ Bug reports, fixes and ideas are welcome.
 ## Releases
 
 Pushing a tag `vX.Y.Z` that matches `fabdl.__version__` runs `.github/workflows/release.yml`:
-it runs the tests on Windows and Linux, attaches `fab-downloader.exe` and
+it runs the tests on Windows and Linux, attaches `fab-downloader-windows.exe` and
 `fab-downloader-linux-x86_64` to a GitHub Release, and publishes the Python package to PyPI with
 trusted publishing. The PyPI job runs only while the repository variable `PUBLISH_TO_PYPI` is
 `true`.

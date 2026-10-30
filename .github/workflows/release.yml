@@ -42,7 +42,7 @@ jobs:
       # --icon and --add-data paths are absolute because PyInstaller resolves them from --specpath.
       - name: Build the executable
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name fab-downloader \
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name fab-downloader-windows \
             --paths . --distpath dist/exe --workpath build/pyinstaller --specpath build \
             --icon "$GITHUB_WORKSPACE/fabdl/icon.ico" --add-data "$GITHUB_WORKSPACE/fabdl/icon.ico;fabdl" \
             packaging/fabdl_gui.py
@@ -52,7 +52,7 @@ jobs:
         timeout-minutes: 2
         env:
           FABDL_SMOKE_TEST: "1"
-        run: dist/exe/fab-downloader.exe
+        run: dist/exe/fab-downloader-windows.exe
 
       - name: Build sdist and wheel
         run: python -m build --outdir dist/python
