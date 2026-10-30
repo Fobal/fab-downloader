@@ -18,8 +18,8 @@ It helps with source-built engines, which the launcher cannot install plugins in
   [Releases](https://github.com/Fobal/fab-downloader/releases) page and run it.
 - **From source:** clone the repo and run `fab-downloader.pyw` for the window, or
   `py -3 -m fabdl` in the repo folder for the command line. Only the standard library is used.
-- **With Python 3.11+:** `pipx install git+https://github.com/Fobal/fab-downloader` adds the
-  `fab-downloader` command for the window and the `fabdl` command line.
+- **With Python 3.11+:** `pipx install fab-downloader` adds the `fab-downloader` command for
+  the window and the `fabdl` command line.
 
 The executable is built by GitHub Actions from the tagged source with PyInstaller and is
 not code-signed, so Windows SmartScreen may warn on first run, and some antivirus products flag
