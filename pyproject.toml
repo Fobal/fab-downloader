@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fab-downloader"
+dynamic = ["version"]
+description = "Download Unreal Engine builds of items in your Fab library and install Fab plugins into Unreal projects, without the Epic Games Launcher."
+readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [{ name = "Fobal" }]
+requires-python = ">=3.11"
+dependencies = []
+keywords = ["unreal-engine", "fab", "epic-games", "plugins", "downloader"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Developers",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Games/Entertainment",
+    "Topic :: Software Development :: Build Tools",
+]
+
+[project.urls]
+Homepage = "https://github.com/Fobal/fab-downloader"
+Issues = "https://github.com/Fobal/fab-downloader/issues"
+Changelog = "https://github.com/Fobal/fab-downloader/releases"
+Funding = "https://github.com/sponsors/Fobal"
+
+[project.scripts]
+fabdl = "fabdl.cli:main"
+
+[project.gui-scripts]
+fab-downloader = "fabdl.gui:main"
+
+[tool.setuptools]
+packages = ["fabdl"]
+
+[tool.setuptools.dynamic]
+version = { attr = "fabdl.__version__" }

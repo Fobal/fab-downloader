@@ -1,0 +1,45 @@
+name: Bug report
+description: Something does not work as described in the README.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste your `authorizationCode`, the copied login page or `session.bin`.**
+        They give access to your Epic account.
+  - type: input
+    id: version
+    attributes:
+      label: fabdl version
+      description: The release you downloaded, or the commit if you run from source.
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you run fabdl
+      options:
+        - fab-downloader.exe from Releases
+        - pipx / pip
+        - From source
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Windows and Unreal Engine versions
+      description: Say whether the engine is a launcher build or source-built.
+      placeholder: Windows 11 24H2, UE 5.4 source-built
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what happened instead. Include the Fab item if it matters.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Error message or command output
+      render: text
