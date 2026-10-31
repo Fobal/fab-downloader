@@ -17,6 +17,9 @@ Only the latest release gets fixes.
 - Never share your `authorizationCode`, the copied login page or `session.bin` (in
   `%APPDATA%\fab-downloader` on Windows, `~/.config/fab-downloader` on Linux), including in
   issues. On Linux the file is not encrypted, so keep it out of backups others can read.
-- Download the executables only from this repository's Releases page.
+- Download the executables only from this repository's Releases page. Releases after 1.2.0 can
+  be verified: `gh attestation verify <file> -R Fobal/fab-downloader` (with the
+  [GitHub CLI](https://cli.github.com/)) checks that the file was built by this repository's
+  release workflow, and `SHA256SUMS` lists the expected SHA-256 of each executable.
 - If you think your session leaked, run `fabdl logout` and change your Epic password, which
   ends your other sessions.

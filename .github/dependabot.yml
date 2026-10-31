@@ -1,0 +1,13 @@
+# The workflows pin actions to commit SHAs; Dependabot opens pull requests to update them.
+# The cooldown skips versions younger than a week, so a compromised release is likely caught first.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
