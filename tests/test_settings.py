@@ -60,6 +60,11 @@ class ConfigDirTests(unittest.TestCase):
                 with mock.patch.dict(settings_module.os.environ, {"XDG_CONFIG_HOME": value}):
                     self.assertEqual(settings_module._config_dir(), Path.home() / ".config")
 
+    def test_uses_application_support_on_macos(self):
+        with mock.patch.object(settings_module.sys, "platform", "darwin"):
+            with mock.patch.dict(settings_module.os.environ, {"XDG_CONFIG_HOME": str(Path.home() / "xdg")}):
+                self.assertEqual(settings_module._config_dir(), Path.home() / "Library" / "Application Support")
+
 
 if __name__ == "__main__":
     unittest.main()

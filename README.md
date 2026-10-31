@@ -1,6 +1,6 @@
 # Fab Downloader
 
-Download Fab Marketplace assets you own for any engine version without Epic Games Launcher or Unreal Engine installed. Runs on Windows and Linux, with a window or a command line.
+Download Fab Marketplace assets you own for any engine version without Epic Games Launcher or Unreal Engine installed. Runs on Windows, macOS and Linux, with a window or a command line.
 
 ![The Fab Downloader window](https://raw.githubusercontent.com/Fobal/fab-downloader/main/docs/screenshot.png)
 
@@ -13,18 +13,24 @@ Download Fab Marketplace assets you own for any engine version without Epic Game
   [Releases](https://github.com/Fobal/fab-downloader/releases).
   - Windows: `fab-downloader-windows.exe`. It is not code-signed, so SmartScreen or antivirus
     software may warn about it; if so, use pipx or the source.
+  - macOS (Apple silicon): `fab-downloader-macos-arm64.zip`. Unzip it and move
+    `Fab Downloader.app` to Applications. It is not notarized by Apple, so the first time macOS
+    refuses to open it: click **Open Anyway** in System Settings > Privacy & Security. On an
+    Intel Mac, use pipx or the source.
   - Linux (x86-64, glibc 2.35 or newer, such as Ubuntu 22.04 or Debian 12):
     `fab-downloader-linux-x86_64`. Make it executable with `chmod +x` first.
 - **pipx** (Python 3.11+): `pipx install fab-downloader`, then run `fab-downloader` for the
-  window or `fabdl` for the command line. On Linux the window needs Tkinter, which some
-  distributions package separately (`python3-tk` on Debian and Ubuntu).
+  window or `fabdl` for the command line. The window needs Tkinter, which some Pythons package
+  separately: `python3-tk` on Debian and Ubuntu, `python-tk` in Homebrew.
 - **Source** (Python 3.11+, standard library only): clone the repo and run
-  `fab-downloader.pyw`, or `py -3 -m fabdl` (`python3 -m fabdl` on Linux) for the command line.
+  `fab-downloader.pyw`, or `py -3 -m fabdl` (`python3 -m fabdl` on macOS and Linux) for the
+  command line.
 
 ## Usage
 
 1. Click **Open Epic login** and sign in. The page then shows JSON text: copy the whole page
-   (Ctrl+A, Ctrl+C) and the window signs in, or paste just the `authorizationCode` value.
+   (Ctrl+A, Ctrl+C, or ⌘A, ⌘C on macOS) and the window signs in, or paste just the
+   `authorizationCode` value.
 2. Search your library, select an item and pick an engine version.
 3. Under **Save to**, choose a destination:
    - **Folder** (recommended): **Download** saves the build to `<folder>\<title> <engine>`.
@@ -33,17 +39,19 @@ Download Fab Marketplace assets you own for any engine version without Epic Game
    - **Engine:** pick a detected engine, or browse to one. **Install to engine** puts a code
      plugin in `Engine\Plugins\Marketplace`.
 
-Anything that gets replaced is backed up to the project's or engine's `Saved` folder first, and
-nothing changes if the Unreal Editor has the files open. The `.uproject` is never edited; if a
-plugin needs enabling, you are told to do it in **Edit > Plugins**.
+Anything that gets replaced is backed up to the project's or engine's `Saved` folder first. On
+Windows nothing changes if the Unreal Editor has the files open; on macOS and Linux the files
+are replaced anyway, so close the editor first. The `.uproject` is never edited; if a plugin
+needs enabling, you are told to do it in **Edit > Plugins**.
 
 For a project or engine, the **Installed** column lists the plugins Fab Downloader put there.
 **Check for updates** looks for newer builds; install an item again to update it.
 
 The window and the command line share one session. On Windows it is saved in
-`%APPDATA%\fab-downloader\session.bin` and encrypted for your Windows user with DPAPI. On Linux
-it is saved in `~/.config/fab-downloader/session.bin`, readable only by your user but not
-encrypted. **Sign out**, or `fabdl logout`, deletes it.
+`%APPDATA%\fab-downloader\session.bin` and encrypted for your Windows user with DPAPI. On macOS
+it is saved in `~/Library/Application Support/fab-downloader/session.bin`, and on Linux in
+`~/.config/fab-downloader/session.bin`, readable only by your user but not encrypted.
+**Sign out**, or `fabdl logout`, deletes it.
 
 Engine detection, backups and downloads are covered in more detail in
 [How it works](https://github.com/Fobal/fab-downloader/blob/main/docs/how-it-works.md).
@@ -76,8 +84,8 @@ To sign in, the first command that needs a session opens the Epic login page and
   has downloaded: starting the same download again continues from there. **Cancel** stops a
   download and deletes what it downloaded. There is no pause button.
 - Builds are requested for Windows unless `--platform` says otherwise, so a code plugin's
-  prebuilt binaries are Windows ones. On Linux, Unreal has to compile the plugin from its
-  source, which source-built engines and C++ projects do.
+  prebuilt binaries are Windows ones. On macOS and Linux, Unreal has to compile the plugin from
+  its source, which source-built engines and C++ projects do (with Xcode on macOS).
 
 ## Contributing
 

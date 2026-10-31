@@ -4,9 +4,13 @@
 
 - **Login:** the Epic Games Launcher's public OAuth client, with the authorization-code flow.
 - **Session:** saved in `%APPDATA%\fab-downloader\session.bin`, encrypted for your Windows user
-  with DPAPI, and refreshed when it expires. On Linux it is saved unencrypted in
-  `~/.config/fab-downloader/session.bin` (or under `$XDG_CONFIG_HOME`), with permissions that
-  let only your user read it, like ssh keys.
+  with DPAPI, and refreshed when it expires. On macOS and Linux it is saved unencrypted, with
+  permissions that let only your user read it, like ssh keys: in
+  `~/Library/Application Support/fab-downloader/session.bin` on macOS, and in
+  `~/.config/fab-downloader/session.bin` (or under `$XDG_CONFIG_HOME`) on Linux.
+- **Certificates:** on macOS, if Python's OpenSSL has no trusted root certificates (Python from
+  python.org before its *Install Certificates* step, and the released app), Fab Downloader uses
+  the ones macOS keeps in `/etc/ssl/cert.pem`.
 - **Clipboard:** the window only reacts to copied text that contains `authorizationCode`, and
   stops watching the clipboard once it signs in, or after 10 minutes.
 - **Settings:** the window remembers the destination, folder, project, engine and engine
@@ -14,13 +18,15 @@
 
 ## Engines
 
-- **Detection** follows Unreal: an engine association like `5.3` is looked up in the
-  launcher's install list (`%ProgramData%\Epic\UnrealEngineLauncher\LauncherInstalled.dat`),
-  any other value in the engines registered under
-  `HKCU\Software\Epic Games\Unreal Engine\Builds` (on Linux, the `[Installations]` section of
-  `~/.config/Epic/UnrealEngine/Install.ini`), and an empty one in the folders around the
-  project. Linux has no launcher, so there only registered engines are found. The Engine list in the window comes from the same two places, plus engine folders
-  you add with **...** (an engine's root, or the `Engine` folder inside it).
+- **Detection** follows Unreal, which keeps its records in `%ProgramData%\Epic` on Windows,
+  `~/Library/Application Support/Epic` on macOS and `~/.config/Epic` on Linux. An engine
+  association like `5.3` is looked up in the launcher's install list
+  (`UnrealEngineLauncher/LauncherInstalled.dat` there), any other value in the registered
+  engines (`HKCU\Software\Epic Games\Unreal Engine\Builds` on Windows, the `[Installations]`
+  section of `UnrealEngine/Install.ini` on macOS and Linux), and an empty one in the folders
+  around the project. Linux has no launcher, so there only registered engines are found. The
+  Engine list in the window comes from the same two places, plus engine folders you add with
+  **...** (an engine's root, or the `Engine` folder inside it).
 - **Staging:** downloads are assembled in the project's `Saved\fabdl` (or the engine's
   `Engine\Intermediate\fabdl`), on the same drive, so installing is a quick move.
 
@@ -31,7 +37,8 @@
   where it is. Fab Downloader never replaces an engine's own built-in plugins.
 - **Replacing:** the old copy is moved to `Saved\PluginBackups\<folder>-<date>` (in the project
   or the engine). If it cannot be moved, usually because the Unreal Editor has its DLLs open,
-  nothing changes.
+  nothing changes. Only Windows stops open files from being moved; on macOS and Linux, close
+  the editor first.
 - **Source-built engines:** the plugin's prebuilt `Binaries` and `Intermediate` folders target
   the launcher build, so they are removed and the build compiles the plugin. Engines with
   `Engine\Build\InstalledBuild.txt` (launcher and installed builds) keep them.
@@ -47,8 +54,8 @@
 - **Where:** the pack's `Content` folder is merged into the project's `Content`, so the assets
   keep their `/Game/...` paths, like the launcher's **Add to Project**.
 - **Replacing:** files the project already has are moved to `Saved\ContentBackups\<date>`
-  first. If a file cannot be moved, usually because the Unreal Editor has it open, every change
-  is undone.
+  first. If a file cannot be moved, usually because the Unreal Editor has it open on Windows,
+  every change is undone.
 - **Not supported:** asset packs cannot be installed into an engine, and complete sample
   projects should be downloaded instead.
 

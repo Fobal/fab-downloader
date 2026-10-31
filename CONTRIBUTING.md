@@ -14,7 +14,7 @@ Bug reports, fixes and ideas are welcome.
 1. For anything larger than a small fix, open an issue first so we can agree on the approach.
 2. Keep Fab Downloader dependency-free: only the Python standard library, Python 3.11+.
 3. Add or update tests in `tests/`. They use fakes and must not reach Epic or Fab.
-4. Run the checks before you push:
+4. Run the checks before you push (with `python3` instead of `py -3` on macOS and Linux):
 
    ```
    py -3 -m pip install pyflakes
@@ -28,8 +28,9 @@ Bug reports, fixes and ideas are welcome.
 ## Releases
 
 Pushing a tag `vX.Y.Z` that matches `fabdl.__version__` runs `.github/workflows/release.yml`:
-it runs the tests on Windows and Linux, attaches `fab-downloader-windows.exe` and
-`fab-downloader-linux-x86_64` to a GitHub Release, and publishes the Python package to PyPI with
+it runs the tests on Windows, macOS and Linux, attaches `fab-downloader-windows.exe`,
+`fab-downloader-macos-arm64.zip` and `fab-downloader-linux-x86_64` to a GitHub Release, and
+publishes the Python package to PyPI with
 trusted publishing. The PyPI job runs only while the repository variable `PUBLISH_TO_PYPI` is
 `true`.
 

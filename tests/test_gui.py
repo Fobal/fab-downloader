@@ -104,6 +104,9 @@ class AppTestCase(unittest.TestCase):
 
     def _select(self, app, title):
         row = next(row for row in app.tree.get_children() if app.tree.item(row, "values")[0] == title)
+        # Some macOS builds of Tk (with Python 3.13.17) drop <<TreeviewSelect>> for a widget that
+        # has no native window yet, as in this hidden window. Asking for its id creates one.
+        app.tree.winfo_id()
         app.tree.selection_set(row)
         self.root.update()
 
@@ -743,3 +746,52 @@ class LoadingIndicatorTests(AppTestCase):
 
         self.assertEqual(app.loading_overlay.winfo_manager(), "")
         self.assertTrue(self._shown(app.sign_in_frame))
+
+
+class MacOSTests(AppTestCase):
+    def setUp(self):
+        super().setUp()
+        self._patch(gui, "_MACOS", new=True)
+
+    def test_quit_in_the_app_menu_asks_while_a_task_runs(self):
+        app = self._signed_in_app()
+        app.busy = True
+
+        with mock.patch.object(gui.messagebox, "askokcancel", return_value=False) as ask:
+            self.root.tk.call("::tk::mac::Quit")
+
+        ask.assert_called_once()
+        self.assertTrue(self.root.winfo_exists())
+
+    def test_about_names_the_app_and_its_version(self):
+        self._app(FakeHttp(), MemoryStore())
+        info = self._patch(gui.messagebox, "showinfo")
+
+        self.root.tk.call("tkAboutDialog")
+
+        self.assertIn(f"Fab Downloader {gui.__version__}", info.call_args.args[1])
+
+
+class PlatformTests(unittest.TestCase):
+    def test_macos_lays_out_in_points(self):
+        root = mock.Mock()
+        root.winfo_fpixels.return_value = 144.0
+
+        with mock.patch.object(gui, "_MACOS", True):
+            self.assertEqual(gui.ui_scale(root), 1.0)
+        with mock.patch.object(gui, "_MACOS", False):
+            self.assertEqual(gui.ui_scale(root), 1.5)
+
+    def test_font_sizes_look_the_same_on_macos(self):
+        with mock.patch.object(gui, "_MACOS", True):
+            self.assertEqual([gui.font_size(size) for size in (10, 12, 13)], [13, 16, 17])
+        with mock.patch.object(gui, "_MACOS", False):
+            self.assertEqual(gui.font_size(10), 10)
+
+    def test_opens_folders_in_the_file_manager(self):
+        folder = Path.home() / "Downloads"
+        for platform, command in (("darwin", "open"), ("linux", "xdg-open")):
+            with mock.patch.object(gui.sys, "platform", platform), mock.patch.object(gui.subprocess, "Popen") as popen:
+                gui._open_folder(folder)
+
+            self.assertEqual(popen.call_args.args[0], [command, str(folder)])

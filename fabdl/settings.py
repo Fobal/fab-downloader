@@ -12,9 +12,12 @@ from pathlib import Path
 
 
 def _config_dir() -> Path:
-    """%APPDATA% on Windows, otherwise the XDG config folder (~/.config by default)."""
+    """%APPDATA% on Windows, ~/Library/Application Support on macOS, otherwise the XDG config
+    folder (~/.config by default)."""
     if sys.platform == "win32":
         return Path(os.environ.get("APPDATA") or Path.home())
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support"
     xdg = os.environ.get("XDG_CONFIG_HOME") or ""
     return Path(xdg) if os.path.isabs(xdg) else Path.home() / ".config"  # XDG says to ignore relative paths.
 

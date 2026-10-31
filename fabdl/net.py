@@ -7,12 +7,33 @@ from __future__ import annotations
 import http.client
 import http.cookiejar
 import json
+import ssl
+import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 # Epic's services expect a launcher user agent.
 LAUNCHER_USER_AGENT = "UELauncher/17.0.1-37584233+++Portal+Release-Live Windows/10.0.19043.1.0.64bit"
+# The trusted root certificates macOS keeps for its own command-line tools.
+MACOS_ROOTS = Path("/etc/ssl/cert.pem")
+
+
+def macos_tls_context() -> ssl.SSLContext | None:
+    """A TLS context that trusts the macOS root certificates, if OpenSSL found no roots itself.
+
+    macOS keeps its roots in the Keychain, which OpenSSL cannot read, so Python from python.org
+    and the released app trust nothing until certificates are installed for them. Returns None
+    where urllib's default context already has roots.
+    """
+    if sys.platform != "darwin" or not MACOS_ROOTS.is_file():
+        return None
+    context = ssl.create_default_context()
+    if context.cert_store_stats()["x509_ca"]:
+        return None
+    context.load_verify_locations(cafile=str(MACOS_ROOTS))
+    return context
 
 
 class HttpError(Exception):
@@ -32,9 +53,11 @@ REQUEST_ERRORS = (HttpError, OSError, http.client.HTTPException)
 class HttpClient:
     def __init__(self, timeout: float = 60):
         self._timeout = timeout
-        self._opener = urllib.request.build_opener(
-            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
-        )
+        handlers: list[urllib.request.BaseHandler] = [urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())]
+        context = macos_tls_context()
+        if context is not None:
+            handlers.append(urllib.request.HTTPSHandler(context=context))
+        self._opener = urllib.request.build_opener(*handlers)
 
     def request(
         self,

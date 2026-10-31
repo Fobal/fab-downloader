@@ -129,5 +129,23 @@ class EngineTests(ProjectTestCase):
             self.assertEqual(project_module._launcher_installs(), {})
 
 
+class ApplicationSettingsDirTests(unittest.TestCase):
+    def test_matches_unreal_on_each_platform(self):
+        with mock.patch.object(project_module.sys, "platform", "win32"):
+            with mock.patch.dict(project_module.os.environ, {"ProgramData": "D:/ProgramData"}):
+                self.assertEqual(project_module._application_settings_dir(), Path("D:/ProgramData/Epic"))
+        with mock.patch.object(project_module.sys, "platform", "darwin"):
+            self.assertEqual(
+                project_module._application_settings_dir(), Path.home() / "Library" / "Application Support" / "Epic"
+            )
+        with mock.patch.object(project_module.sys, "platform", "linux"):
+            self.assertEqual(project_module._application_settings_dir(), Path.home() / ".config" / "Epic")
+
+    def test_launcher_list_and_install_ini_live_there(self):
+        settings_dir = project_module._application_settings_dir()
+        self.assertEqual(project_module.LAUNCHER_LIST, settings_dir / "UnrealEngineLauncher" / "LauncherInstalled.dat")
+        self.assertEqual(project_module.INSTALL_INI, settings_dir / "UnrealEngine" / "Install.ini")
+
+
 if __name__ == "__main__":
     unittest.main()

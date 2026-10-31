@@ -2,10 +2,13 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Read an Unreal project and find the engine it uses, the way Unreal's DesktopPlatform module does.
 
+Unreal keeps its records in FPlatformProcess::ApplicationSettingsDir(): %ProgramData%\\Epic on
+Windows, ~/Library/Application Support/Epic on macOS and ~/.config/Epic on Linux.
+
 An engine association like "5.3" names a launcher install, listed in
-%ProgramData%\\Epic\\UnrealEngineLauncher\\LauncherInstalled.dat. Any other value, usually a GUID,
-names an engine registered under HKCU\\Software\\Epic Games\\Unreal Engine\\Builds, or on Linux in
-the [Installations] section of ~/.config/Epic/UnrealEngine/Install.ini. An empty value means the
+UnrealEngineLauncher/LauncherInstalled.dat there. Any other value, usually a GUID, names an
+engine registered under HKCU\\Software\\Epic Games\\Unreal Engine\\Builds on Windows, or in the
+[Installations] section of UnrealEngine/Install.ini on macOS and Linux. An empty value means the
 project sits inside the engine's folder tree.
 """
 
@@ -19,12 +22,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-LAUNCHER_LIST = (
-    Path(os.environ.get("ProgramData") or r"C:\ProgramData") / "Epic" / "UnrealEngineLauncher" / "LauncherInstalled.dat"
-)
+
+def _application_settings_dir() -> Path:
+    """Unreal's FPlatformProcess::ApplicationSettingsDir() on this platform."""
+    if sys.platform == "win32":
+        return Path(os.environ.get("ProgramData") or r"C:\ProgramData") / "Epic"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "Epic"
+    return Path.home() / ".config" / "Epic"
+
+
+LAUNCHER_LIST = _application_settings_dir() / "UnrealEngineLauncher" / "LauncherInstalled.dat"
 _BUILDS_KEY = r"Software\Epic Games\Unreal Engine\Builds"
-# Where Unreal registers engines on Linux: FPlatformProcess::ApplicationSettingsDir() is ~/.config/Epic.
-INSTALL_INI = Path.home() / ".config" / "Epic" / "UnrealEngine" / "Install.ini"
+INSTALL_INI = _application_settings_dir() / "UnrealEngine" / "Install.ini"  # Registered engines on macOS and Linux.
 
 
 class ProjectError(Exception):
@@ -171,7 +181,7 @@ def _registered_builds() -> dict[str, str]:
 
 
 def _install_ini_builds() -> dict[str, str]:
-    """Engines registered on Linux, for example {"{1EB8...}": "/home/me/UnrealEngine"}."""
+    """Engines registered on macOS and Linux, for example {"{1EB8...}": "/home/me/UnrealEngine"}."""
     parser = configparser.ConfigParser(interpolation=None, strict=False)
     parser.optionxform = str  # Keep the names' case; lookups compare them case-insensitively anyway.
     try:

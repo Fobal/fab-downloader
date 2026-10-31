@@ -21,6 +21,8 @@ body:
       label: How you run Fab Downloader
       options:
         - fab-downloader-windows.exe from Releases
+        - fab-downloader-macos-arm64.zip from Releases
+        - fab-downloader-linux-x86_64 from Releases
         - pipx / pip
         - From source
     validations:
@@ -28,7 +30,7 @@ body:
   - type: input
     id: environment
     attributes:
-      label: Windows and Unreal Engine versions
+      label: Operating system and Unreal Engine versions
       description: Say whether the engine is a launcher build or source-built.
       placeholder: Windows 11 24H2, UE 5.4 source-built
   - type: textarea

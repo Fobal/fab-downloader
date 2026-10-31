@@ -11,6 +11,7 @@ permissions:
 env:
   PYINSTALLER_VERSION: "6.22.3"
   BUILD_VERSION: "1.6.1"
+  PILLOW_VERSION: "13.0.0"
 
 jobs:
   build:
@@ -114,8 +115,63 @@ jobs:
           path: dist/exe/fab-downloader-linux-x86_64
           if-no-files-found: error
 
+  # An app bundle for Apple silicon, the runner's architecture. Intel Macs use pipx or the source.
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+
+      - name: Unit tests
+        run: python -m unittest discover -s tests -t .
+
+      # Pillow lets PyInstaller turn icon.png into the bundle's .icns icon.
+      - name: Install build tools
+        run: python -m pip install "pyinstaller==$PYINSTALLER_VERSION" "pillow==$PILLOW_VERSION"
+
+      # --windowed builds "Fab Downloader.app". PyInstaller signs it ad hoc, which Apple silicon
+      # requires; it is not signed with a Developer ID or notarized.
+      - name: Build the app
+        run: |
+          python -m PyInstaller --noconfirm --clean --windowed --name "Fab Downloader" \
+            --osx-bundle-identifier io.github.fobal.fab-downloader \
+            --paths . --distpath dist/exe --workpath build/pyinstaller --specpath build \
+            --icon "$GITHUB_WORKSPACE/fabdl/icon.png" --add-data "$GITHUB_WORKSPACE/fabdl/icon.png:fabdl" \
+            packaging/fabdl_gui.py
+
+      # PyInstaller has no option for the bundle version. Changing Info.plist breaks the
+      # signature, so the bundle is signed (ad hoc) again.
+      - name: Set the app version
+        run: |
+          version=$(python -c "import fabdl; print(fabdl.__version__)")
+          app="dist/exe/Fab Downloader.app"
+          plutil -replace CFBundleShortVersionString -string "$version" "$app/Contents/Info.plist"
+          plutil -replace CFBundleVersion -string "$version" "$app/Contents/Info.plist"
+          codesign --force --sign - "$app"
+          codesign --verify --deep --strict "$app"
+
+      - name: Smoke test the app
+        timeout-minutes: 2
+        env:
+          FABDL_SMOKE_TEST: "1"
+        run: '"dist/exe/Fab Downloader.app/Contents/MacOS/Fab Downloader"'
+
+      # ditto keeps the bundle's symlinks and signature intact, which zip does not.
+      - name: Zip the app
+        run: ditto -c -k --keepParent "dist/exe/Fab Downloader.app" dist/fab-downloader-macos-arm64.zip
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: executable-macos
+          path: dist/fab-downloader-macos-arm64.zip
+          if-no-files-found: error
+
   github-release:
-    needs: [build, build-linux]
+    needs: [build, build-linux, build-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write

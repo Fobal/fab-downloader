@@ -15,8 +15,9 @@ Only the latest release gets fixes.
 ## Keeping your account safe
 
 - Never share your `authorizationCode`, the copied login page or `session.bin` (in
-  `%APPDATA%\fab-downloader` on Windows, `~/.config/fab-downloader` on Linux), including in
-  issues. On Linux the file is not encrypted, so keep it out of backups others can read.
+  `%APPDATA%\fab-downloader` on Windows, `~/Library/Application Support/fab-downloader` on
+  macOS, `~/.config/fab-downloader` on Linux), including in issues. On macOS and Linux the file
+  is not encrypted, so keep it out of backups others can read.
 - Download the executables only from this repository's Releases page. Releases after 1.2.0 can
   be verified: `gh attestation verify <file> -R Fobal/fab-downloader` (with the
   [GitHub CLI](https://cli.github.com/)) checks that the file was built by this repository's

@@ -36,9 +36,12 @@ from .workflow import EXPECTED_ERRORS, UpdateStatus
 
 TITLE = "Fab Downloader"
 ICON_PATH = Path(__file__).with_name("icon.ico")
-ICON_PNG_PATH = Path(__file__).with_name("icon.png")  # For Tk on X11, which cannot read .ico files.
+ICON_PNG_PATH = Path(__file__).with_name("icon.png")  # For Tk on X11 and macOS, which cannot read .ico files.
 _REPO_URL = "https://github.com/Fobal/fab-downloader"
 _SPONSOR_URL = f"{_REPO_URL}#sponsor"
+_MACOS = sys.platform == "darwin"
+_COPY_PAGE_KEYS = "⌘A, ⌘C" if _MACOS else "Ctrl+A, Ctrl+C"
+_HAND_CURSOR = "pointinghand" if _MACOS else "hand2"  # The native pointing hand on macOS.
 FOLDER, PROJECT, ENGINE = "folder", "project", "engine"
 _ACTION_LABELS = {FOLDER: "Download", PROJECT: "Add to project", ENGINE: "Install to engine"}
 _PROJECT_HINT = "Choose your .uproject with the ... button next to Project."
@@ -131,6 +134,11 @@ class App:
 
         self._build()
         root.protocol("WM_DELETE_WINDOW", self._close)
+        if _MACOS:
+            # Quit in the app menu (Cmd+Q) would otherwise exit without asking about a running task,
+            # and About would describe Tcl/Tk.
+            root.createcommand("::tk::mac::Quit", self._close)
+            root.createcommand("tkAboutDialog", self._show_about)
         root.bind("<Destroy>", self._destroyed, add="+")
         self._poll_job = root.after(_POLL_MS, self._poll)
         self._open_saved_project()
@@ -166,7 +174,7 @@ class App:
         root = self.root
         root.title(TITLE)
         set_window_icon(root)
-        scale = root.winfo_fpixels("1i") / 96
+        scale = ui_scale(root)
         root.minsize(round(760 * scale), round(640 * scale))
         # A set size keeps the window still when the Installed column or the sign-in steps appear;
         # otherwise Tk resizes it to fit whatever its widgets ask for.
@@ -198,7 +206,7 @@ class App:
         self.login_button.grid(row=1, column=0, sticky="w", pady=(8, 0))
         ttk.Label(
             self.sign_in_frame,
-            text='2. Copy the whole page (Ctrl+A, Ctrl+C) to sign in, or paste the "authorizationCode" value here:',
+            text=f'2. Copy the whole page ({_COPY_PAGE_KEYS}) to sign in, or paste the "authorizationCode" value here:',
         ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(14, 0))
         self.code_var = tk.StringVar()
         self.code_entry = ttk.Entry(self.sign_in_frame, textvariable=self.code_var)
@@ -271,7 +279,7 @@ class App:
         )
         self.project_radio.grid(row=2, column=1, sticky="w", padx=(0, 12), pady=(8, 0))
         self.project_var = tk.StringVar()
-        self.project_entry = ttk.Entry(actions, textvariable=self.project_var, state="readonly", cursor="hand2")
+        self.project_entry = ttk.Entry(actions, textvariable=self.project_var, state="readonly", cursor=_HAND_CURSOR)
         self.project_entry.grid(row=2, column=2, sticky="ew", pady=(8, 0))
         # The path is read-only, so a click opens the picker instead of placing a caret.
         self.project_entry.bind("<Button-1>", lambda _: self._project_field_clicked())
@@ -325,12 +333,12 @@ class App:
         footer = ttk.Frame(root, padding=(16, 14, 16, 8))
         footer.grid(row=7, column=0, sticky="ew")
         self.sponsor_button = ttk.Button(
-            footer, text="♥ Support the dev", style="Link.TButton", cursor="hand2", command=self._open_sponsor
+            footer, text="♥ Support the dev", style="Link.TButton", cursor=_HAND_CURSOR, command=self._open_sponsor
         )
         self.sponsor_button.pack(side="right")
         ttk.Label(footer, text=f"v{__version__} ·", style="Muted.TLabel").pack(side="left")
         self.repo_button = ttk.Button(
-            footer, text="github.com/Fobal/fab-downloader", style="Repo.Link.TButton", cursor="hand2",
+            footer, text="github.com/Fobal/fab-downloader", style="Repo.Link.TButton", cursor=_HAND_CURSOR,
             command=self._open_repo,
         )
         self.repo_button.pack(side="left", padx=(4, 0))
@@ -452,6 +460,9 @@ class App:
 
     def _open_sponsor(self) -> None:
         webbrowser.open(_SPONSOR_URL)
+
+    def _show_about(self) -> None:
+        messagebox.showinfo(TITLE, f"{TITLE} {__version__}\n\n{_REPO_URL}", parent=self.root)
 
     def _watch_clipboard(self) -> None:
         self._stop_clipboard_watch()  # Keep a single pending check.
@@ -947,20 +958,20 @@ def _apply_theme(root: tk.Tk) -> list[tkfont.Font]:
     Built on clam, the one standard theme whose colors can all be changed. Sizes are given in
     pixels at 96 DPI and scaled, because clam draws its arrows and indicators in pixels.
     """
-    scale = float(root.tk.call("tk", "scaling")) / (96 / 72)
+    scale = ui_scale(root)
 
     def px(size: float) -> int:
         return round(size * scale)
 
     default_font = tkfont.nametofont("TkDefaultFont", root=root)
     for name in ("TkDefaultFont", "TkTextFont", "TkHeadingFont"):
-        tkfont.nametofont(name, root=root).configure(size=10)
+        tkfont.nametofont(name, root=root).configure(size=font_size(10))
     title_font = default_font.copy()
-    title_font.configure(size=13, weight="bold")
+    title_font.configure(size=font_size(13), weight="bold")
     bold_font = default_font.copy()
     bold_font.configure(weight="bold")
     link_font = default_font.copy()
-    link_font.configure(size=12)
+    link_font.configure(size=font_size(12))
 
     style = ttk.Style(root)
     style.theme_use("clam")
@@ -1086,6 +1097,26 @@ def _apply_theme(root: tk.Tk) -> list[tkfont.Font]:
     return [title_font, bold_font, link_font]
 
 
+def ui_scale(root: tk.Misc) -> float:
+    """Screen pixels per layout pixel. The layout is drawn in pixels at 96 DPI.
+
+    macOS lays windows out in points, which look about the size of a 96-DPI pixel, and draws
+    them sharply on Retina displays itself. Tk reports 72 points per inch there, which would
+    shrink the window to three quarters.
+    """
+    return 1.0 if _MACOS else root.winfo_fpixels("1i") / 96
+
+
+def font_size(points: int) -> int:
+    """The Tk font size that looks like the given size does on Windows.
+
+    Tk font sizes are in points. Windows draws a point as 96/72 pixels; macOS draws it as one
+    screen point, the unit its windows are laid out in, so the same size would be three quarters
+    as tall there. 10 becomes 13, the macOS system font size.
+    """
+    return round(points * 96 / 72) if _MACOS else points
+
+
 def _enable(widget: ttk.Widget, enabled: bool) -> None:
     widget.state(["!disabled"] if enabled else ["disabled"])
 
@@ -1103,7 +1134,8 @@ def _open_folder(folder: Path) -> None:
     if sys.platform == "win32":
         os.startfile(folder)
     else:
-        subprocess.Popen(["xdg-open", str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        opener = "open" if sys.platform == "darwin" else "xdg-open"  # open shows the folder in Finder.
+        subprocess.Popen([opener, str(folder)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _downloads_folder() -> Path:
