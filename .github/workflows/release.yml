@@ -185,9 +185,6 @@ jobs:
           path: dist
           pattern: executable*
           merge-multiple: true
-      - name: Write checksums
-        working-directory: dist
-        run: sha256sum fab-downloader-* > SHA256SUMS
       # Proves the files were built by this workflow from this tag. Anyone can check a download with
       #   gh attestation verify <file> -R Fobal/fab-downloader
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2

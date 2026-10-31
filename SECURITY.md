@@ -21,6 +21,6 @@ Only the latest release gets fixes.
 - Download the executables only from this repository's Releases page. Releases after 1.2.0 can
   be verified: `gh attestation verify <file> -R Fobal/fab-downloader` (with the
   [GitHub CLI](https://cli.github.com/)) checks that the file was built by this repository's
-  release workflow, and `SHA256SUMS` lists the expected SHA-256 of each executable.
+  release workflow. The Releases page also shows each file's SHA-256.
 - If you think your session leaked, run `fabdl logout` and change your Epic password, which
   ends your other sessions.
