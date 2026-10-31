@@ -233,6 +233,14 @@ class SessionTests(AppTestCase):
 
         browser.assert_called_once_with("https://github.com/Fobal/fab-downloader#sponsor")
 
+    def test_repo_link_opens_the_repository(self):
+        app = self._app(FakeHttp(), MemoryStore())
+        browser = self._patch(gui.webbrowser, "open")
+
+        app.repo_button.invoke()
+
+        browser.assert_called_once_with("https://github.com/Fobal/fab-downloader")
+
 
 class DestinationTests(AppTestCase):
     def test_opens_the_saved_project_and_shows_installed_plugins(self):

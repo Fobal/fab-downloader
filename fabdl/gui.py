@@ -23,7 +23,7 @@ from tkinter import filedialog, messagebox, ttk
 from tkinter import font as tkfont
 from typing import Any, Callable
 
-from . import auth, workflow
+from . import __version__, auth, workflow
 from .auth import Session, SessionStore
 from .fab import LibraryItem, find_items
 from .install import ContentResult, InstalledPlugin, InstallResult, PluginTarget, installed_plugins
@@ -36,7 +36,8 @@ from .workflow import EXPECTED_ERRORS, UpdateStatus
 TITLE = "Fab Downloader"
 ICON_PATH = Path(__file__).with_name("icon.ico")
 ICON_PNG_PATH = Path(__file__).with_name("icon.png")  # For Tk on X11, which cannot read .ico files.
-_SPONSOR_URL = "https://github.com/Fobal/fab-downloader#sponsor"
+_REPO_URL = "https://github.com/Fobal/fab-downloader"
+_SPONSOR_URL = f"{_REPO_URL}#sponsor"
 FOLDER, PROJECT, ENGINE = "folder", "project", "engine"
 _ACTION_LABELS = {FOLDER: "Download", PROJECT: "Add to project", ENGINE: "Install to engine"}
 _PROJECT_HINT = "Choose your .uproject with the ... button next to Project."
@@ -321,6 +322,12 @@ class App:
             footer, text="♥ Support the dev", style="Link.TButton", cursor="hand2", command=self._open_sponsor
         )
         self.sponsor_button.pack(side="right")
+        ttk.Label(footer, text=f"v{__version__} ·", style="Muted.TLabel").pack(side="left")
+        self.repo_button = ttk.Button(
+            footer, text="github.com/Fobal/fab-downloader", style="Repo.Link.TButton", cursor="hand2",
+            command=self._open_repo,
+        )
+        self.repo_button.pack(side="left", padx=(4, 0))
 
     # Background work
 
@@ -423,6 +430,9 @@ class App:
         self.clipboard_deadline = time.monotonic() + _CLIPBOARD_WATCH_SECONDS
         if self.clipboard_job is None:
             self.clipboard_job = self.root.after(_CLIPBOARD_POLL_MS, self._watch_clipboard)
+
+    def _open_repo(self) -> None:
+        webbrowser.open(_REPO_URL)
 
     def _open_sponsor(self) -> None:
         webbrowser.open(_SPONSOR_URL)
@@ -971,6 +981,7 @@ def _apply_theme(root: tk.Tk) -> list[tkfont.Font]:
         [("Button.focus", {"sticky": "nswe", "children": [("Button.label", {"sticky": "nswe"})]})],
     )
     style.configure("Link.TButton", foreground=_SPONSOR, font=link_font, padding=0)
+    style.configure("Repo.Link.TButton", foreground=_ACCENT, font=default_font)  # Sits inline with muted text.
 
     field = {"fieldbackground": [("disabled", _HEADER), ("readonly", _BACKGROUND)],
              "bordercolor": [("focus", _ACCENT)],
