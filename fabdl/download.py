@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Fobal - https://github.com/Fobal/fab-downloader
+# SPDX-License-Identifier: GPL-3.0-only
 """Download and assemble the files of a build manifest from Epic's CDN."""
 
 from __future__ import annotations

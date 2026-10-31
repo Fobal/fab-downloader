@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Fobal - https://github.com/Fobal/fab-downloader
+# SPDX-License-Identifier: GPL-3.0-only
 """Install downloads into a project or engine, and record which Fab build each plugin is."""
 
 from __future__ import annotations

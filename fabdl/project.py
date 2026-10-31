@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Fobal - https://github.com/Fobal/fab-downloader
+# SPDX-License-Identifier: GPL-3.0-only
 """Read an Unreal project and find the engine it uses, the way Unreal's DesktopPlatform module does.
 
 An engine association like "5.3" names a launcher install, listed in

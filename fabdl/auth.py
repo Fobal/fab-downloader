@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Fobal - https://github.com/Fobal/fab-downloader
+# SPDX-License-Identifier: GPL-3.0-only
 """Epic account login through the Epic Games Launcher's OAuth client.
 
 The launcher client id and secret are public; they identify the launcher, not an account.

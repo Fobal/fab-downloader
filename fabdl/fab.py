@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Fobal - https://github.com/Fobal/fab-downloader
+# SPDX-License-Identifier: GPL-3.0-only
 """Fab library and download endpoints, the ones the Epic Games Launcher uses.
 
 Fab has no public API.

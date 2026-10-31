@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Fobal - https://github.com/Fobal/fab-downloader
+# SPDX-License-Identifier: GPL-3.0-only
 """PyInstaller entry point for the fab-downloader executable (windowed).
 
 PyInstaller runs its entry script as a top-level module, so the package's relative imports

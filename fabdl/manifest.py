@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Fobal - https://github.com/Fobal/fab-downloader
+# SPDX-License-Identifier: GPL-3.0-only
 """Parse Epic build manifests (binary and JSON) and chunk files."""
 
 from __future__ import annotations

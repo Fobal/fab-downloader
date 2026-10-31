@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Fobal - https://github.com/Fobal/fab-downloader
+# SPDX-License-Identifier: GPL-3.0-only
 """Window for browsing the Fab library and saving builds to a folder, a project or an engine.
 
 Network work runs on a background thread. Results come back through a queue that the Tk
