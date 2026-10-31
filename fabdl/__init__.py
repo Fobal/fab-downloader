@@ -2,4 +2,4 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Download Unreal Engine builds of items in your Fab library without the Epic Games Launcher."""
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
