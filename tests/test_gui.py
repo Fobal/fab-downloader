@@ -1,10 +1,12 @@
 import tempfile
+import threading
 import tkinter as tk
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from fabdl import gui
+from fabdl.download import DownloadCancelled
 from fabdl.gui import ENGINE, FOLDER, PROJECT, App, default_engine, login_code_from_clipboard
 from fabdl.install import RECORD_FILE, ContentResult, InstalledPlugin, InstallRecord, InstallResult, PluginTarget
 from fabdl.manifest import Manifest
@@ -360,7 +362,7 @@ class InstallTests(AppTestCase):
         self._select(app, "Flow Graph")
         calls = []
 
-        def fake_install(http, session, item, version, engine, project, *, on_manifest, report):
+        def fake_install(http, session, item, version, engine, project, *, on_manifest, report, stop):
             calls.append((item.asset_id, version.artifact_id, engine))
             on_manifest(Manifest(18, "1.0", {}, ()))
             report(1, 2)
@@ -422,7 +424,7 @@ class DownloadTests(AppTestCase):
         self._select(app, "Flow Graph")
         out_dir = self.temp / "Flow Graph UE_5.3"
 
-        def fake_download(http, session, item, version, target, *, on_manifest, report):
+        def fake_download(http, session, item, version, target, *, on_manifest, report, stop):
             self.assertEqual(target, out_dir)
             report(3, 4)
             return [target / "FlowGraph" / "FlowGraph.uplugin", target / "FlowGraph" / "Source" / "A.cpp"]
@@ -465,6 +467,39 @@ class DownloadTests(AppTestCase):
         self.assertEqual(app.folder_var.get(), str(self.temp))
         self.assertEqual(Settings.load(self.settings_path).download_folder, str(self.temp))
 
+    def test_cancel_stops_the_download_without_an_error(self):
+        app = self._signed_in_app()
+        app.folder_var.set(str(self.temp))
+        self._select(app, "Flow Graph")
+        self.assertFalse(self._shown(app.cancel_button))
+
+        def fake_download(http, session, item, version, target, *, on_manifest, report, stop):
+            self.assertTrue(self._shown(app.cancel_button))
+            self.assertFalse(self._shown(app.open_button))
+            app.cancel_button.invoke()
+            self.assertTrue(stop.is_set())
+            self.assertEqual(app.status_var.get(), "Cancelling...")
+            self.assertFalse(self._enabled(app.cancel_button), "it can only be clicked once")
+            raise DownloadCancelled()
+
+        with mock.patch.object(gui.workflow, "download_item", side_effect=fake_download):
+            app._start_action()
+            self._settle(app)
+
+        self.assertEqual(app.status_var.get(), "Cancelled.")
+        self.assertEqual(self.errors, [])
+        self.assertFalse(self._shown(app.cancel_button))
+        self.assertTrue(self._enabled(app.action_button))
+
+    def test_quitting_during_a_download_says_the_progress_is_kept(self):
+        app = self._signed_in_app()
+        app.busy, app.stop_event = True, threading.Event()
+
+        with mock.patch.object(gui.messagebox, "askokcancel", return_value=False) as ask:
+            app._close()
+
+        self.assertIn("starting the same download again continues from there", ask.call_args.args[1])
+
 
 if __name__ == "__main__":
     unittest.main()
@@ -497,7 +532,7 @@ class EngineDestinationTests(AppTestCase):
         self.assertEqual(self._rows(app)[0][2], "UE_5.3", "plugins installed in that engine")
         self.assertEqual(Settings.load(self.settings_path).engine_dir, str(engines[1].root))
 
-        def fake_install(http, session, item, version, engine, *, on_manifest, report):
+        def fake_install(http, session, item, version, engine, *, on_manifest, report, stop):
             self.assertEqual(engine, engines[1])
             target = PluginTarget.for_engine(engine)
             return InstallResult(target, InstalledPlugin(folder, record), None, True, False)
@@ -530,7 +565,7 @@ class AssetPackTests(AppTestCase):
         app = self._project_app()
         self._select(app, "Flow Graph")
 
-        def fake_add(http, session, item, version, engine, project, *, on_manifest, report):
+        def fake_add(http, session, item, version, engine, project, *, on_manifest, report, stop):
             folder = project.root / "Content" / "RockPack"
             return ContentResult(project, [folder], 12, None, 0)
 

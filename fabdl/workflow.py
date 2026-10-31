@@ -4,9 +4,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 import shutil
-import uuid
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -14,7 +15,7 @@ from pathlib import Path
 from typing import Callable, Iterator
 
 from .auth import AuthError, Session
-from .download import DownloadError, download_build
+from .download import DownloadError, check_stop, download_build
 from .fab import DownloadSource, FabError, LibraryItem, ProjectVersion, list_library, request_build
 from .install import (
     ContentResult,
@@ -80,9 +81,10 @@ def download_item(
     platform: str = "Windows",
     on_manifest: Callable[[Manifest], None] | None = None,
     report: Callable[[int, int], None] | None = None,
+    stop: threading.Event | None = None,
 ) -> list[Path]:
     """Download one engine version of an item into out_dir, which must not exist yet."""
-    paths, _ = _download(http, session, item, version, out_dir, platform, on_manifest, report)
+    paths, _ = _download(http, session, item, version, out_dir, platform, on_manifest, report, stop)
     return paths
 
 
@@ -97,11 +99,15 @@ def add_to_project(
     platform: str = "Windows",
     on_manifest: Callable[[Manifest], None] | None = None,
     report: Callable[[int, int], None] | None = None,
+    stop: threading.Event | None = None,
 ) -> InstallResult | ContentResult:
     """Install a plugin into the project's Plugins folder, or merge an asset pack into its Content."""
     target = PluginTarget.for_project(project)
-    with _work_dir(target) as work_dir:
-        record = _download_for_install(http, session, item, version, engine_version, work_dir, platform, on_manifest, report)
+    with _work_dir(target, version, platform) as work_dir:
+        record = _download_for_install(
+            http, session, item, version, engine_version, work_dir, platform, on_manifest, report, stop
+        )
+        check_stop(stop)  # The last point to cancel. Installing only moves files, so it is not interrupted.
         if any(plugin_folders(work_dir)):
             return install_plugin(work_dir, target, record)
         return add_content(work_dir, project)
@@ -117,11 +123,15 @@ def install_to_engine(
     platform: str = "Windows",
     on_manifest: Callable[[Manifest], None] | None = None,
     report: Callable[[int, int], None] | None = None,
+    stop: threading.Event | None = None,
 ) -> InstallResult:
     """Install a plugin into the engine's Plugins/Marketplace folder, like the launcher's Install to Engine."""
     target = PluginTarget.for_engine(engine)
-    with _work_dir(target) as work_dir:
-        record = _download_for_install(http, session, item, version, engine.version, work_dir, platform, on_manifest, report)
+    with _work_dir(target, version, platform) as work_dir:
+        record = _download_for_install(
+            http, session, item, version, engine.version, work_dir, platform, on_manifest, report, stop
+        )
+        check_stop(stop)  # The last point to cancel. Installing only moves files, so it is not interrupted.
         return install_plugin(work_dir, target, record)
 
 
@@ -163,8 +173,9 @@ def _download_for_install(
     platform: str,
     on_manifest: Callable[[Manifest], None] | None,
     report: Callable[[int, int], None] | None,
+    stop: threading.Event | None,
 ) -> InstallRecord:
-    _, build_version = _download(http, session, item, version, work_dir, platform, on_manifest, report)
+    _, build_version = _download(http, session, item, version, work_dir, platform, on_manifest, report, stop)
     return InstallRecord(
         asset_id=item.asset_id,
         namespace=item.namespace,
@@ -178,9 +189,14 @@ def _download_for_install(
 
 
 @contextmanager
-def _work_dir(target: PluginTarget) -> Iterator[Path]:
-    """A fresh download folder on the target's drive, removed afterwards."""
-    work_dir = target.staging_dir / f"download-{uuid.uuid4().hex[:8]}"
+def _work_dir(target: PluginTarget, version: ProjectVersion, platform: str) -> Iterator[Path]:
+    """A download folder on the target's drive, removed afterwards.
+
+    Its name depends only on the build, so a download that stopped is resumed by the next one.
+    """
+    key = hashlib.sha1(f"{version.artifact_id}/{platform}".encode()).hexdigest()[:12]
+    work_dir = target.staging_dir / f"download-{key}"
+    shutil.rmtree(work_dir, ignore_errors=True)  # Left by a run that stopped while installing.
     try:
         yield work_dir
     finally:
@@ -235,6 +251,7 @@ def _download(
     platform: str,
     on_manifest: Callable[[Manifest], None] | None,
     report: Callable[[int, int], None] | None,
+    stop: threading.Event | None,
 ) -> tuple[list[Path], str]:
     """Returns the downloaded paths and Fab's build version, which update checks compare against."""
     build = request_build(http, session, item, version, platform)
@@ -247,5 +264,6 @@ def _download(
         out_dir,
         lambda url: http.request("GET", url),
         report=report,
+        stop=stop,
     )
     return paths, build.build_version

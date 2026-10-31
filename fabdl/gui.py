@@ -25,6 +25,7 @@ from typing import Any, Callable
 
 from . import __version__, auth, workflow
 from .auth import Session, SessionStore
+from .download import DownloadCancelled
 from .fab import LibraryItem, find_items
 from .install import ContentResult, InstalledPlugin, InstallResult, PluginTarget, installed_plugins
 from .manifest import Manifest
@@ -125,6 +126,7 @@ class App:
         self.engine_item_id: str | None = None  # The item the engine box was filled for.
         self.result_folder: Path | None = None
         self.busy = False
+        self.stop_event: threading.Event | None = None  # Set to cancel the running download.
         self.events: queue.Queue[Callable[[], None]] = queue.Queue()
 
         self._build()
@@ -313,6 +315,10 @@ class App:
         self.open_button = ttk.Button(status, text="Open folder", command=self._open_result)
         self.open_button.grid(row=1, column=1, sticky="ne", padx=(8, 0), pady=(10, 0))
         self.open_button.grid_remove()
+        # Shown in Open folder's place while a download runs.
+        self.cancel_button = ttk.Button(status, text="Cancel", command=self._cancel)
+        self.cancel_button.grid(row=1, column=1, sticky="ne", padx=(8, 0), pady=(10, 0))
+        self.cancel_button.grid_remove()
         self.action_button = ttk.Button(status, text="Download", style="Accent.TButton", command=self._start_action)
         self.action_button.grid(row=1, column=2, sticky="ne", padx=(8, 0), pady=(10, 0))
 
@@ -355,12 +361,17 @@ class App:
         self.start_thread(task)
 
     def _succeeded(self, on_success: Callable[[Any], None], result: Any) -> None:
-        self.busy = False
+        self._task_ended()
         on_success(result)
         self._update_controls()
 
     def _failed(self, error: Exception, on_error: Callable[[], None] | None) -> None:
-        self.busy = False
+        self._task_ended()
+        if isinstance(error, DownloadCancelled):
+            self.status_var.set("Cancelled.")
+            self.progress.configure(value=0, maximum=1)
+            self._update_controls()
+            return
         message = str(error) if isinstance(error, (SignInRequired, *EXPECTED_ERRORS)) else f"{type(error).__name__}: {error}"
         self.status_var.set(f"Error: {message}")
         if isinstance(error, SignInRequired):
@@ -369,6 +380,11 @@ class App:
             on_error()
         self._update_controls()
         messagebox.showerror(TITLE, message, parent=self.root)
+
+    def _task_ended(self) -> None:
+        self.busy = False
+        self.stop_event = None
+        self.cancel_button.grid_remove()
 
     def process_events(self) -> None:
         while True:
@@ -706,11 +722,11 @@ class App:
         if out_dir.exists():
             messagebox.showerror(TITLE, f"{out_dir} already exists. Delete it or choose another folder.", parent=self.root)
             return
-        self._prepare_progress()
+        stop = self._prepare_progress()
 
         def work() -> list[Path]:
             return workflow.download_item(
-                self.http, self._fresh_session(), item, version, out_dir, **self._progress_callbacks(item, engine)
+                self.http, self._fresh_session(), item, version, out_dir, **self._progress_callbacks(item, engine, stop)
             )
 
         self._run(f"Preparing {item.title} ({engine})...", work, partial(self._download_finished, out_dir))
@@ -727,11 +743,12 @@ class App:
             return
         if not self._confirm_engine(item, engine, project.engine.version, project.name):
             return
-        self._prepare_progress()
+        stop = self._prepare_progress()
 
         def work() -> InstallResult | ContentResult:
             return workflow.add_to_project(
-                self.http, self._fresh_session(), item, version, engine, project, **self._progress_callbacks(item, engine)
+                self.http, self._fresh_session(), item, version, engine, project,
+                **self._progress_callbacks(item, engine, stop),
             )
 
         self._run(f"Preparing {item.title} ({engine})...", work, self._install_finished)
@@ -743,11 +760,12 @@ class App:
             return
         if not self._confirm_engine(item, version_name, engine.version, f"the engine at {engine.root}"):
             return
-        self._prepare_progress()
+        stop = self._prepare_progress()
 
         def work() -> InstallResult:
             return workflow.install_to_engine(
-                self.http, self._fresh_session(), item, version, engine, **self._progress_callbacks(item, version_name)
+                self.http, self._fresh_session(), item, version, engine,
+                **self._progress_callbacks(item, version_name, stop),
             )
 
         self._run(f"Preparing {item.title} ({version_name})...", work, self._install_finished)
@@ -791,18 +809,31 @@ class App:
             self.status_var.set(f"{count} update{'s' if count > 1 else ''} available. Select the plugin and install it again.")
         self._show_items()
 
-    def _prepare_progress(self) -> None:
+    def _prepare_progress(self) -> threading.Event:
+        """Reset the progress bar and offer Cancel. Returns the event that Cancel sets."""
         self.open_button.grid_remove()
+        self.cancel_button.grid()
         self.progress.configure(value=0, maximum=1)
+        self.stop_event = threading.Event()
+        return self.stop_event
 
-    def _progress_callbacks(self, item: LibraryItem, engine: str) -> dict[str, Callable]:
-        """Callbacks for the worker thread that forward progress to the main thread."""
+    def _progress_callbacks(self, item: LibraryItem, engine: str, stop: threading.Event) -> dict[str, Any]:
+        """Callbacks for the worker thread that forward progress to the main thread, and the stop event."""
         return {
             "on_manifest": lambda manifest: self.events.put(partial(self._download_started, item, engine, manifest)),
             "report": lambda done, total: self.events.put(partial(self._show_progress, done, total)),
+            "stop": stop,
         }
 
+    def _cancel(self) -> None:
+        if self.stop_event is not None and not self.stop_event.is_set():
+            self.stop_event.set()
+            self.status_var.set("Cancelling...")
+            self._update_controls()
+
     def _download_started(self, item: LibraryItem, engine: str, manifest: Manifest) -> None:
+        if self.stop_event is not None and self.stop_event.is_set():
+            return  # Keep showing that it is cancelling.
         size_mb = sum(entry.size for entry in manifest.files) / 2**20
         self.status_var.set(f"Downloading {item.title} ({engine}): {len(manifest.files)} files, {size_mb:.1f} MB")
 
@@ -862,11 +893,19 @@ class App:
             self.action_button,
             idle and signed_in and has_item and bool(self.engine_var.get()) and destination_ready,
         )
+        _enable(self.cancel_button, self.stop_event is not None and not self.stop_event.is_set())
         self.engine_box.configure(state="readonly" if idle and has_item else "disabled")
 
     def _close(self) -> None:
-        if self.busy and not messagebox.askokcancel(TITLE, "A task is still running. Quit anyway?", parent=self.root):
-            return
+        if self.busy:
+            message = "A task is still running. Quit anyway?"
+            if self.stop_event is not None:
+                message = (
+                    "A download is still running. Quit anyway?\n\nWhat it has downloaded so far is kept, "
+                    "and starting the same download again continues from there."
+                )
+            if not messagebox.askokcancel(TITLE, message, parent=self.root):
+                return
         self.root.destroy()
 
 

@@ -72,7 +72,9 @@ To sign in, the first command that needs a session opens the Epic login page and
 - Fab has no public API. Fab Downloader uses the launcher's private endpoints, which Epic can
   change without notice and does not officially support.
 - Encrypted manifests and chunks are not supported.
-- Downloads cannot be paused or resumed; closing the window is the only way to cancel one.
+- A download that fails, or is stopped by closing the window or pressing Ctrl+C, keeps what it
+  has downloaded: starting the same download again continues from there. **Cancel** stops a
+  download and deletes what it downloaded. There is no pause button.
 - Builds are requested for Windows unless `--platform` says otherwise, so a code plugin's
   prebuilt binaries are Windows ones. On Linux, Unreal has to compile the plugin from its
   source, which source-built engines and C++ projects do.

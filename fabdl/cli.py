@@ -20,6 +20,7 @@ from .settings import Settings
 from .workflow import EXPECTED_ERRORS
 
 T = TypeVar("T")
+_STOPPED = "Stopped. What was downloaded so far is kept; run the same command again to continue."
 
 
 class UsageError(Exception):
@@ -30,8 +31,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         args.handler(args)
-    except (KeyboardInterrupt, EOFError):
-        print("\nCancelled.", file=sys.stderr)
+    except (KeyboardInterrupt, EOFError) as error:
+        print(f"\n{str(error) or 'Cancelled.'}", file=sys.stderr)
         return 130
     except (UsageError, *EXPECTED_ERRORS) as error:
         print(f"error: {error}", file=sys.stderr)
@@ -108,6 +109,8 @@ def _download(args: argparse.Namespace) -> None:
             http, session, item, version, out_dir,
             platform=args.platform, on_manifest=announce, report=_report_progress,
         )
+    except KeyboardInterrupt:
+        raise KeyboardInterrupt(_STOPPED) from None
     finally:
         print()  # End the progress line.
     print(f"Saved to {out_dir}")
@@ -139,6 +142,8 @@ def _install(args: argparse.Namespace) -> None:
             result = workflow.install_to_engine(
                 http, session, item, version, engine_target, platform=args.platform, report=_report_progress
             )
+    except KeyboardInterrupt:
+        raise KeyboardInterrupt(_STOPPED) from None
     finally:
         print()  # End the progress line.
     for line in workflow.result_lines(result):

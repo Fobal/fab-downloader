@@ -60,5 +60,12 @@
    build version and signed manifest URLs for several CDNs.
 3. **Files:** the build manifest (binary or JSON) lists each file as parts of compressed
    chunks. Fab Downloader downloads every chunk once, falling back to the other CDNs, and
-   rebuilds the files. Each file must pass the SHA-1 check from the manifest. Files are written
-   to a staging folder and moved into place only when all of them pass.
+   rebuilds the files. A chunk that no CDN serves is tried again after 2, 5 and 15 seconds
+   before the download fails. Each file must pass the SHA-1 check from the manifest. Files are
+   written to a staging folder and moved into place only when all of them pass.
+4. **Resuming:** chunks are saved in the staging folder as they arrive (`<folder>.fabdl-partial`
+   next to the output folder, or under `Saved\fabdl` and `Engine\Intermediate\fabdl` for
+   installs). If the download fails or the program stops, they stay there, and the next
+   download of the same build to the same place fetches only the missing ones. The chunks of a
+   file that fails its SHA-1 check are dropped so they are fetched again. **Cancel** deletes the
+   staging folder.

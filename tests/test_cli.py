@@ -78,6 +78,15 @@ class MainTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(output.strip(), "The UE_5.3 engine has no plugins installed by fabdl.")
 
+    def test_ctrl_c_during_a_download_says_how_to_continue(self):
+        with tempfile.TemporaryDirectory() as temp, \
+                mock.patch.object(cli, "_unreal_library", return_value=(None, ITEMS)), \
+                mock.patch.object(cli.workflow, "download_item", side_effect=KeyboardInterrupt):
+            code, _, errors = self._main("download", "a1", "--engine", "5.3", "--out", str(Path(temp) / "out"))
+
+        self.assertEqual(code, 130)
+        self.assertIn("run the same command again to continue", errors)
+
     def test_project_and_engine_are_exclusive(self):
         with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
             main(["install", "x", "--project", "a.uproject", "--engine-dir", "b"])

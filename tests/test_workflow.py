@@ -1,11 +1,14 @@
 import hashlib
 import tempfile
+import threading
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest import mock
 
+from fabdl import download
 from fabdl.auth import Session
-from fabdl.download import DownloadError
+from fabdl.download import DownloadCancelled, DownloadError
 from fabdl.fab import DownloadSource, LibraryItem, ProjectVersion
 from fabdl.install import RECORD_FILE, InstallError, InstallRecord, installed_plugins
 from fabdl.manifest import ChunkInfo, chunk_path
@@ -25,24 +28,36 @@ from fabdl.workflow import (
 )
 
 from . import builders
-from .builders import GUID_A
+from .builders import GUID_A, GUID_B
 from .fakes import FakeHttp, RoutedHttp, make_project
 
 SESSION = Session("token", datetime(2030, 1, 1, tzinfo=timezone.utc), "refresh", "account1", "Me")
 ITEM = LibraryItem("asset1", "ns1", "Flow: Graph", "CODE_PLUGIN", (ProjectVersion("art53", ("UE_5.3",)),))
 CHUNK_URL = f"https://up/{chunk_path(ChunkInfo(GUID_A, 5, 1), 18)}"
+CHUNK_B_URL = f"https://up/{chunk_path(ChunkInfo(GUID_B, 6, 1), 18)}"
 
 
-def _manifest_bytes(files):
+def _manifest_bytes(files, chunks=((GUID_A, 5, 1),)):
     body = (
         builders.meta(18, "2.0")
-        + builders.chunk_list([(GUID_A, 5, 1)], 18)
+        + builders.chunk_list(list(chunks), 18)
         + builders.file_list(files)
     )
     return builders.binary_manifest(body)
 
 
-def _cdn(files):
+def _two_chunk_cdn():
+    """Like _cdn, for a plugin whose descriptor is in one chunk and its source in another."""
+    http = _cdn([
+        ("FlowGraph/FlowGraph.uplugin", hashlib.sha1(b"{}").digest(), [(GUID_A, 0, 2)]),
+        ("FlowGraph/Source/A.cpp", hashlib.sha1(b"code").digest(), [(GUID_B, 0, 4)]),
+    ], chunks=((GUID_A, 5, 1), (GUID_B, 6, 1)))
+    http.routes[f"GET {CHUNK_URL}"] = builders.chunk_file(GUID_A, b"{}")
+    http.routes[f"GET {CHUNK_B_URL}"] = builders.chunk_file(GUID_B, b"code")
+    return http
+
+
+def _cdn(files, chunks=((GUID_A, 5, 1),)):
     """Fab and CDN answers for a build of ITEM. The first CDN is down."""
     return RoutedHttp({
         "POST https://www.fab.com/e/artifacts/art53/manifest": {"downloadInfo": [{
@@ -54,7 +69,7 @@ def _cdn(files):
                 {"manifestUrl": "https://up/m.manifest?sig"},
             ],
         }]},
-        "GET https://up/m.manifest?sig": _manifest_bytes(files),
+        "GET https://up/m.manifest?sig": _manifest_bytes(files, chunks),
         f"GET {CHUNK_URL}": builders.chunk_file(GUID_A, b"{}code"),
     })
 
@@ -143,6 +158,38 @@ class DownloadAndInstallTests(unittest.TestCase):
             install_to_engine(http, SESSION, ITEM, ITEM.project_versions[0], read_engine(engine_root))
 
         self.assertFalse((engine_root / "Engine" / "Plugins").exists())
+
+    def test_a_failed_install_is_resumed_by_the_next_one(self):
+        project = load_project(make_project(self.root / "engine"))
+        http = _two_chunk_cdn()
+        chunk_b = http.routes.pop(f"GET {CHUNK_B_URL}")
+
+        with mock.patch.object(download, "RETRY_DELAYS", ()), self.assertRaises(DownloadError):
+            add_to_project(http, SESSION, ITEM, ITEM.project_versions[0], "UE_5.3", project)
+
+        self.assertFalse(project.plugins_dir.exists())
+        http.routes[f"GET {CHUNK_B_URL}"] = chunk_b
+        http.requests.clear()
+
+        add_to_project(http, SESSION, ITEM, ITEM.project_versions[0], "UE_5.3", project)
+
+        self.assertNotIn(f"GET {CHUNK_URL}", http.requests, "the chunk from the first attempt is reused")
+        self.assertIn(f"GET {CHUNK_B_URL}", http.requests)
+        self.assertEqual((project.plugins_dir / "FlowGraph" / "Source" / "A.cpp").read_bytes(), b"code")
+        self.assertFalse((project.root / "Saved" / "fabdl").exists())
+
+    def test_cancelling_installs_nothing_and_cleans_up(self):
+        project = load_project(make_project(self.root / "engine"))
+        stop = threading.Event()
+
+        with self.assertRaises(DownloadCancelled):
+            add_to_project(
+                _cdn(PLUGIN_FILES), SESSION, ITEM, ITEM.project_versions[0], "UE_5.3", project,
+                report=lambda done, total: stop.set(), stop=stop,
+            )
+
+        self.assertFalse(project.plugins_dir.exists())
+        self.assertFalse((project.root / "Saved" / "fabdl").exists())
 
 
 class CheckUpdatesTests(unittest.TestCase):

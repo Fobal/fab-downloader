@@ -1,10 +1,21 @@
 import hashlib
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from fabdl.download import STAGING_SUFFIX, DownloadError, download_build, safe_relative_path
-from fabdl.manifest import ChunkInfo, ChunkPart, FileEntry, Manifest, chunk_path
+from fabdl import download
+from fabdl.download import (
+    RESUME_HINT,
+    STAGING_SUFFIX,
+    DownloadCancelled,
+    DownloadError,
+    download_build,
+    safe_relative_path,
+)
+from fabdl.manifest import ChunkInfo, ChunkPart, FileEntry, Manifest, chunk_path, guid_hex
 from fabdl.net import HttpError
 
 from . import builders
@@ -47,9 +58,17 @@ class DownloadBuildTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.out = self.root / "Plugin UE_5.3"
+        self.staging = self.root / ("Plugin UE_5.3" + STAGING_SUFFIX)
+        # Three rounds of attempts, without the real waits between them.
+        patcher = mock.patch.object(download, "RETRY_DELAYS", (0, 0))
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def _stored_chunks(self):
+        return sorted(path.name for path in (self.staging / "chunks").iterdir())
 
     def test_assembles_files_from_shared_chunks(self):
         cdn = FakeCdn(["https://cdn"])
@@ -93,6 +112,101 @@ class DownloadBuildTests(unittest.TestCase):
             download_build(manifest, ["https://one"], self.out, cdn.fetch)
 
         self.assertEqual(len(cdn.requests), 3)
+        self.assertEqual(list(self.root.iterdir()), [], "no chunk arrived, so there is nothing to keep")
+
+    def test_waits_between_rounds_of_attempts(self):
+        cdn = FakeCdn(["https://cdn"])
+        failures = iter([True, True])
+
+        def flaky_fetch(url):
+            if next(failures, False):
+                raise OSError("connection reset")
+            return cdn.fetch(url)
+
+        manifest = _manifest([_entry("a.txt", [ChunkPart(GUID_B, 0, 4)], b"0123")])
+        started = time.monotonic()
+
+        download_build(manifest, ["https://cdn"], self.out, flaky_fetch, retry_delays=(0.1, 0.2))
+
+        self.assertGreaterEqual(time.monotonic() - started, 0.3)
+        self.assertEqual((self.out / "a.txt").read_bytes(), b"0123")
+
+    def test_keeps_the_chunks_of_a_failed_download_and_resumes(self):
+        cdn = FakeCdn(["https://cdn"])
+        chunk_b_url = f"https://cdn/{chunk_path(CHUNK_B, 18)}"
+        chunk_b = cdn.files.pop(chunk_b_url)
+        manifest = _manifest([
+            _entry("a.txt", [ChunkPart(GUID_A, 0, 5)], b"Hello"),
+            _entry("b.txt", [ChunkPart(GUID_B, 0, 4)], b"0123"),
+        ])
+
+        with self.assertRaises(DownloadError) as failure:
+            download_build(manifest, ["https://cdn"], self.out, cdn.fetch)
+
+        self.assertIn(RESUME_HINT, str(failure.exception))
+        self.assertFalse(self.out.exists())
+        self.assertEqual(self._stored_chunks(), [f"{guid_hex(GUID_A)}.bin"])
+        self.assertFalse((self.staging / "files").exists())
+
+        cdn.files[chunk_b_url] = chunk_b
+        cdn.requests.clear()
+        progress = []
+        download_build(manifest, ["https://cdn"], self.out, cdn.fetch, report=lambda d, t: progress.append((d, t)))
+
+        self.assertEqual(cdn.requests, [chunk_b_url], "only the missing chunk is downloaded")
+        self.assertEqual(progress, [(1, 2), (2, 2)])
+        self.assertEqual((self.out / "a.txt").read_bytes(), b"Hello")
+        self.assertEqual((self.out / "b.txt").read_bytes(), b"0123")
+        self.assertFalse(self.staging.exists())
+
+    def test_resumes_after_the_program_was_stopped(self):
+        chunks = self.staging / "chunks"
+        chunks.mkdir(parents=True)
+        (chunks / f"{guid_hex(GUID_A)}.bin").write_bytes(PAYLOAD_A)
+        (chunks / f"{guid_hex(GUID_B)}.tmp").write_bytes(b"half a chunk")
+        (self.staging / "files").mkdir()
+        (self.staging / "files" / "a.txt").write_bytes(b"Hel")
+        cdn = FakeCdn(["https://cdn"])
+        manifest = _manifest([
+            _entry("a.txt", [ChunkPart(GUID_A, 0, 5)], b"Hello"),
+            _entry("b.txt", [ChunkPart(GUID_B, 0, 4)], b"0123"),
+        ])
+
+        download_build(manifest, ["https://cdn"], self.out, cdn.fetch)
+
+        self.assertEqual(cdn.requests, [f"https://cdn/{chunk_path(CHUNK_B, 18)}"])
+        self.assertEqual((self.out / "a.txt").read_bytes(), b"Hello")
+        self.assertEqual((self.out / "b.txt").read_bytes(), b"0123")
+        self.assertFalse(self.staging.exists())
+
+    def test_cancelling_removes_what_was_downloaded(self):
+        cdn = FakeCdn(["https://cdn"])
+        stop = threading.Event()
+
+        def fetch_then_cancel(url):
+            stop.set()
+            return cdn.fetch(url)
+
+        manifest = _manifest([
+            _entry("a.txt", [ChunkPart(GUID_A, 0, 5)], b"Hello"),
+            _entry("b.txt", [ChunkPart(GUID_B, 0, 4)], b"0123"),
+        ])
+
+        with self.assertRaises(DownloadCancelled):
+            download_build(manifest, ["https://cdn"], self.out, fetch_then_cancel, stop=stop)
+
+        self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_cancelled_before_starting_downloads_nothing(self):
+        cdn = FakeCdn(["https://cdn"])
+        stop = threading.Event()
+        stop.set()
+        manifest = _manifest([_entry("a.txt", [ChunkPart(GUID_B, 0, 4)], b"0123")])
+
+        with self.assertRaises(DownloadCancelled):
+            download_build(manifest, ["https://cdn"], self.out, cdn.fetch, stop=stop)
+
+        self.assertEqual(cdn.requests, [])
         self.assertEqual(list(self.root.iterdir()), [])
 
     def test_rejects_a_file_that_fails_its_hash(self):
@@ -102,6 +216,28 @@ class DownloadBuildTests(unittest.TestCase):
             download_build(manifest, ["https://cdn"], self.out, FakeCdn(["https://cdn"]).fetch)
 
         self.assertEqual(list(self.root.iterdir()), [])
+
+    def test_fetches_the_chunks_of_a_file_that_failed_its_hash_again(self):
+        cdn = FakeCdn(["https://cdn"])
+        chunk_b_url = f"https://cdn/{chunk_path(CHUNK_B, 18)}"
+        good_chunk = cdn.files[chunk_b_url]
+        cdn.files[chunk_b_url] = builders.chunk_file(GUID_B, b"9999999999")
+        manifest = _manifest([
+            _entry("a.txt", [ChunkPart(GUID_A, 0, 5)], b"Hello"),
+            _entry("b.txt", [ChunkPart(GUID_B, 0, 4)], b"0123"),
+        ])
+
+        with self.assertRaisesRegex(DownloadError, "b.txt failed its SHA-1 check"):
+            download_build(manifest, ["https://cdn"], self.out, cdn.fetch)
+
+        self.assertEqual(self._stored_chunks(), [f"{guid_hex(GUID_A)}.bin"], "the bad chunk is dropped")
+        cdn.files[chunk_b_url] = good_chunk
+        cdn.requests.clear()
+
+        download_build(manifest, ["https://cdn"], self.out, cdn.fetch)
+
+        self.assertEqual(cdn.requests, [chunk_b_url])
+        self.assertEqual((self.out / "b.txt").read_bytes(), b"0123")
 
     def test_rejects_a_chunk_with_the_wrong_guid(self):
         cdn = FakeCdn(["https://cdn"])
@@ -129,16 +265,6 @@ class DownloadBuildTests(unittest.TestCase):
 
         with self.assertRaisesRegex(DownloadError, "already exists"):
             download_build(_manifest([]), ["https://cdn"], self.out, FakeCdn(["https://cdn"]).fetch)
-
-    def test_replaces_a_leftover_staging_folder(self):
-        leftover = self.root / ("Plugin UE_5.3" + STAGING_SUFFIX)
-        (leftover / "files").mkdir(parents=True)
-        manifest = _manifest([_entry("a.txt", [ChunkPart(GUID_B, 0, 4)], b"0123")])
-
-        download_build(manifest, ["https://cdn"], self.out, FakeCdn(["https://cdn"]).fetch)
-
-        self.assertFalse(leftover.exists())
-        self.assertEqual((self.out / "a.txt").read_bytes(), b"0123")
 
     def test_checks_paths_before_downloading(self):
         cdn = FakeCdn(["https://cdn"])
