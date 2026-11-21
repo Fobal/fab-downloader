@@ -9,7 +9,7 @@ from unittest import mock
 
 from fabdl import gui
 from fabdl.download import DownloadCancelled
-from fabdl.gui import ENGINE, FOLDER, PROJECT, App, default_engine, login_code_from_clipboard
+from fabdl.gui import ENGINE, FOLDER, PROJECT, App, default_engine
 from fabdl.install import RECORD_FILE, ContentResult, InstalledPlugin, InstallRecord, InstallResult, PluginTarget
 from fabdl.manifest import Manifest
 from fabdl.project import read_engine
@@ -583,48 +583,23 @@ class AssetPackTests(AppTestCase):
         self.assertEqual(app.result_folder, content / "RockPack")
 
 
-class ClipboardSignInTests(AppTestCase):
-    PAGE = '{"warning":"Do not share","authorizationCode":"abc123","exchangeCode":null}'
-
-    def test_recognizes_only_the_login_page(self):
-        self.assertEqual(login_code_from_clipboard(self.PAGE), "abc123")
-        self.assertIsNone(login_code_from_clipboard("abc123"), "bare text is never sent to Epic")
-        self.assertIsNone(login_code_from_clipboard('{"other": 1}'))
-        self.assertIsNone(login_code_from_clipboard('{"authorizationCode": null}'))
-
-    def test_opening_the_login_page_leaves_the_clipboard_alone(self):
-        app = self._app(FakeHttp(), MemoryStore())
-        clipboard = self._patch(app, "_clipboard_text", return_value=self.PAGE)
+class ClipboardTests(AppTestCase):
+    def test_signing_in_never_reads_the_clipboard(self):
+        store = MemoryStore()
+        app = self._app(FakeHttp((200, token_response()), (200, _library_page())), store)
+        clipboard = self._patch(self.root, "clipboard_get", return_value='{"authorizationCode":"abc123"}')
         self._patch(gui.webbrowser, "open")
 
         app._open_login()
         self._settle(app)
+        self.assertIsNone(store.data, "copying the page alone does not sign in")
 
-        clipboard.assert_not_called()
-        self.assertTrue(self._shown(app.sign_in_frame))
-
-    def test_paste_signs_in_with_the_copied_page(self):
-        store = MemoryStore()
-        app = self._app(FakeHttp((200, token_response()), (200, _library_page())), store)
-        self._patch(app, "_clipboard_text", return_value=self.PAGE)
-
-        app._paste_and_sign_in()
+        app.code_var.set('{"authorizationCode":"abc123"}')  # The user pastes it.
+        app._sign_in()
         self._settle(app)
 
         self.assertEqual(store.data["access_token"], "access1")
-        self.assertFalse(self._shown(app.sign_in_frame))
-
-    def test_paste_sends_nothing_unless_the_clipboard_holds_the_page(self):
-        http = FakeHttp()
-        app = self._app(http, MemoryStore())
-        self._patch(app, "_clipboard_text", return_value="hunter2")
-
-        app._paste_and_sign_in()
-        self._settle(app)
-
-        self.assertEqual(http.requests, [])
-        self.assertIn("does not hold Epic's login page", app.status_var.get())
-        self.assertTrue(self._shown(app.sign_in_frame))
+        clipboard.assert_not_called()
 
 
 class DestinationClickTests(AppTestCase):
