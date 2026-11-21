@@ -11,8 +11,8 @@
 - **Certificates:** on macOS, if Python's OpenSSL has no trusted root certificates (Python from
   python.org before its *Install Certificates* step, and the released app), Fab Downloader uses
   the ones macOS keeps in `/etc/ssl/cert.pem`.
-- **Clipboard:** the window only reacts to copied text that contains `authorizationCode`, and
-  stops watching the clipboard once it signs in, or after 10 minutes.
+- **Clipboard:** the window reads the clipboard only when you click **Paste and sign in**, and
+  only signs in if it holds Epic's login JSON page. Any other text is never sent anywhere.
 - **Settings:** the window remembers the destination, folder, project, engine and engine
   version in `settings.json` next to the session.
 

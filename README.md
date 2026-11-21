@@ -29,8 +29,8 @@ Download Fab Marketplace assets you own for any engine version without Epic Game
 ## Usage
 
 1. Click **Open Epic login** and sign in. The page then shows JSON text: copy the whole page
-   (Ctrl+A, Ctrl+C, or ⌘A, ⌘C on macOS) and the window signs in, or paste just the
-   `authorizationCode` value.
+   (Ctrl+A, Ctrl+C, or ⌘A, ⌘C on macOS) and click **Paste and sign in**, or paste just the
+   `authorizationCode` value and click **Sign in**.
 2. Search your library, select an item and pick an engine version.
 3. Under **Save to**, choose a destination:
    - **Folder** (recommended): **Download** saves the build to `<folder>\<title> <engine>`.

@@ -14,7 +14,6 @@ import queue
 import subprocess
 import sys
 import threading
-import time
 import tkinter as tk
 import webbrowser
 from functools import partial
@@ -47,8 +46,6 @@ _ACTION_LABELS = {FOLDER: "Download", PROJECT: "Add to project", ENGINE: "Instal
 _PROJECT_HINT = "Choose your .uproject with the ... button next to Project."
 _ENGINE_HINT = "No Unreal Engine installs were found. Choose an engine folder with the ... button."
 _POLL_MS = 50
-_CLIPBOARD_POLL_MS = 500
-_CLIPBOARD_WATCH_SECONDS = 600
 _ALL_COLUMNS = ("title", "type", "installed")
 _FOLDER_COLUMNS = ("title", "type")
 _COLUMN_WIDTHS = {"title": 360, "type": 140, "installed": 220}  # Before stretching to fill the list.
@@ -86,12 +83,12 @@ def default_engine(versions: list[str], preferred: str | None) -> str:
     return preferred if preferred in versions else versions[-1]
 
 
-def login_code_from_clipboard(text: str, ignored: str) -> str | None:
-    """The authorization code, if the clipboard holds a new copy of Epic's login JSON page.
+def login_code_from_clipboard(text: str) -> str | None:
+    """The authorization code, if the clipboard holds Epic's login JSON page.
 
-    Only the whole JSON page counts, so other text the user copies is never sent to Epic.
+    Only the whole JSON page counts, so other text the user copied is never sent to Epic.
     """
-    if text == ignored or not text.strip().startswith("{") or "authorizationCode" not in text:
+    if not text.strip().startswith("{") or "authorizationCode" not in text:
         return None
     try:
         return auth.parse_authorization_code(text)
@@ -119,9 +116,6 @@ class App:
         self.engines = _with_custom_engines(find_engines() if engines is None else engines, self.settings.custom_engines)
         self.session: Session | None = None
         self.project: Project | None = None
-        self.clipboard_job: str | None = None
-        self.clipboard_ignored = ""  # The clipboard text when the login page was opened.
-        self.clipboard_deadline = 0.0
         self.items: list[LibraryItem] = []
         self.rows: dict[str, LibraryItem] = {}
         self.installed: dict[str, InstalledPlugin] = {}  # By Fab asset id.
@@ -206,14 +200,19 @@ class App:
         self.login_button.grid(row=1, column=0, sticky="w", pady=(8, 0))
         ttk.Label(
             self.sign_in_frame,
-            text=f'2. Copy the whole page ({_COPY_PAGE_KEYS}) to sign in, or paste the "authorizationCode" value here:',
+            text=f"2. Copy the whole page ({_COPY_PAGE_KEYS}), then click Paste and sign in.",
         ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(14, 0))
+        self.paste_button = ttk.Button(self.sign_in_frame, text="Paste and sign in", command=self._paste_and_sign_in)
+        self.paste_button.grid(row=3, column=0, sticky="w", pady=(8, 0))
+        ttk.Label(self.sign_in_frame, text='Or paste just the "authorizationCode" value here:').grid(
+            row=4, column=0, columnspan=2, sticky="w", pady=(14, 0)
+        )
         self.code_var = tk.StringVar()
         self.code_entry = ttk.Entry(self.sign_in_frame, textvariable=self.code_var)
-        self.code_entry.grid(row=3, column=0, sticky="ew", pady=(8, 0))
+        self.code_entry.grid(row=5, column=0, sticky="ew", pady=(8, 0))
         self.code_entry.bind("<Return>", lambda _: self._sign_in())
         self.sign_in_button = ttk.Button(self.sign_in_frame, text="Sign in", command=self._sign_in)
-        self.sign_in_button.grid(row=3, column=1, padx=(8, 0), pady=(8, 0))
+        self.sign_in_button.grid(row=5, column=1, padx=(8, 0), pady=(8, 0))
         self.sign_in_frame.grid_remove()
 
         library = ttk.Frame(root, padding=(16, 14, 16, 0))
@@ -412,7 +411,6 @@ class App:
         # Children's <Destroy> events also reach the root's bindings.
         if event.widget is self.root:
             self.root.after_cancel(self._poll_job)
-            self._stop_clipboard_watch()
 
     def _fresh_session(self) -> Session:
         """Runs on the worker thread: refresh the session if it is about to expire."""
@@ -436,7 +434,6 @@ class App:
             self.account_label.configure(text=f"Signed in as {session.display_name or session.account_id}")
             self.sign_out_button.grid()
             self.sign_in_frame.grid_remove()
-            self._stop_clipboard_watch()
         else:
             self.account_label.configure(text="Not signed in")
             self.sign_out_button.grid_remove()
@@ -448,12 +445,6 @@ class App:
 
     def _open_login(self) -> None:
         webbrowser.open(auth.LOGIN_URL)
-        self.code_entry.focus_set()
-        # Sign in as soon as the user copies the JSON page, instead of making them paste it.
-        self.clipboard_ignored = self._clipboard_text()
-        self.clipboard_deadline = time.monotonic() + _CLIPBOARD_WATCH_SECONDS
-        if self.clipboard_job is None:
-            self.clipboard_job = self.root.after(_CLIPBOARD_POLL_MS, self._watch_clipboard)
 
     def _open_repo(self) -> None:
         webbrowser.open(_REPO_URL)
@@ -464,34 +455,30 @@ class App:
     def _show_about(self) -> None:
         messagebox.showinfo(TITLE, f"{TITLE} {__version__}\n\n{_REPO_URL}", parent=self.root)
 
-    def _watch_clipboard(self) -> None:
-        self._stop_clipboard_watch()  # Keep a single pending check.
-        if self.session is not None or time.monotonic() > self.clipboard_deadline:
-            return
-        if not self.busy:
-            text = self._clipboard_text()
-            if login_code_from_clipboard(text, self.clipboard_ignored):
-                self.clipboard_ignored = text  # Try each copied page once.
-                self.code_var.set(text)
-                self._sign_in()
-        self.clipboard_job = self.root.after(_CLIPBOARD_POLL_MS, self._watch_clipboard)
-
-    def _stop_clipboard_watch(self) -> None:
-        if self.clipboard_job is not None:
-            self.root.after_cancel(self.clipboard_job)
-            self.clipboard_job = None
-
     def _clipboard_text(self) -> str:
         try:
             return self.root.clipboard_get()
         except tk.TclError:
             return ""  # Empty, or not text.
 
-    def _sign_in(self) -> None:
+    def _paste_and_sign_in(self) -> None:
+        """Read the clipboard once, only when the user asks, and sign in if it holds the login page."""
         if self.busy:
             return
-        code = self.code_var.get()
-        self._run("Signing in...", lambda: auth.sign_in(self.http, self.store, code), self._signed_in)
+        text = self._clipboard_text()
+        if login_code_from_clipboard(text) is None:
+            self.status_var.set(
+                f"The clipboard does not hold Epic's login page. Copy the whole page ({_COPY_PAGE_KEYS}) first."
+            )
+            return
+        self._start_sign_in(text)
+
+    def _sign_in(self) -> None:
+        if not self.busy:
+            self._start_sign_in(self.code_var.get())
+
+    def _start_sign_in(self, code_text: str) -> None:
+        self._run("Signing in...", lambda: auth.sign_in(self.http, self.store, code_text), self._signed_in)
 
     def _signed_in(self, session: Session) -> None:
         self.code_var.set("")
@@ -883,6 +870,7 @@ class App:
             ENGINE: self.selected_engine() is not None,
         }[destination]
         _enable(self.login_button, idle)
+        _enable(self.paste_button, idle)
         _enable(self.sign_in_button, idle)
         _enable(self.sign_out_button, idle)
         _enable(self.refresh_button, idle and signed_in)
